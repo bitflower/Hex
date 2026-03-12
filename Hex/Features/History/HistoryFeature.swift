@@ -109,8 +109,8 @@ struct HistoryFeature {
 		case playTranscript(UUID)
 		case stopPlayback
 		case copyToClipboard(String)
-		case saveToAppleNotes(String)
-		case saveToAppleNotesResult(Result<Void, Error>)
+		case saveToAppleNotes(UUID, String)
+		case saveToAppleNotesResult(UUID, Result<Void, Error>)
 		case deleteTranscript(UUID)
 		case deleteAllTranscripts
 		case confirmDeleteAll
@@ -174,21 +174,26 @@ struct HistoryFeature {
 					await pasteboard.copy(text)
 				}
 
-			case let .saveToAppleNotes(text):
+			case let .saveToAppleNotes(id, text):
 				let folderName = state.hexSettings.appleNotesFolderName
 				return .run { [appleNotes] send in
 					do {
 						try await appleNotes.saveNote(text, folderName)
-						await send(.saveToAppleNotesResult(.success(())))
+						await send(.saveToAppleNotesResult(id, .success(())))
 					} catch {
-						await send(.saveToAppleNotesResult(.failure(error)))
+						await send(.saveToAppleNotesResult(id, .failure(error)))
 					}
 				}
 
-			case .saveToAppleNotesResult(.success):
+			case let .saveToAppleNotesResult(id, .success):
+				_ = state.$transcriptionHistory.withLock { history in
+					if let index = history.history.firstIndex(where: { $0.id == id }) {
+						history.history[index].savedToAppleNotes = true
+					}
+				}
 				return .none
 
-			case .saveToAppleNotesResult(.failure(let error)):
+			case let .saveToAppleNotesResult(_, .failure(error)):
 				historyLogger.error("Failed to save to Apple Notes: \(error.localizedDescription)")
 				return .none
 
@@ -302,14 +307,14 @@ struct TranscriptView: View {
 						showSaveToNotesAnimation()
 					} label: {
 						HStack(spacing: 4) {
-							Image(systemName: showSavedToNotes ? "checkmark" : "note.text")
-							if showSavedToNotes {
+							Image(systemName: (showSavedToNotes || transcript.savedToAppleNotes) ? "checkmark" : "note.text")
+							if showSavedToNotes || transcript.savedToAppleNotes {
 								Text("Saved").font(.caption)
 							}
 						}
 					}
 					.buttonStyle(.plain)
-					.foregroundStyle(showSavedToNotes ? .green : .secondary)
+					.foregroundStyle((showSavedToNotes || transcript.savedToAppleNotes) ? .green : .secondary)
 					.help("Save to Apple Notes")
 
 					Button(action: onPlay) {
@@ -429,7 +434,7 @@ struct HistoryView: View {
                   isPlaying: store.playingTranscriptID == transcript.id,
                   onPlay: { store.send(.playTranscript(transcript.id)) },
                   onCopy: { store.send(.copyToClipboard(transcript.text)) },
-                  onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
+                  onSaveToNotes: { store.send(.saveToAppleNotes(transcript.id, transcript.text)) },
                   onDelete: { store.send(.deleteTranscript(transcript.id)) }
                 )
               }
