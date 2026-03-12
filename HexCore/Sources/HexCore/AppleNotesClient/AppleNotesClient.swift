@@ -21,6 +21,11 @@ public struct AppleNotesClient: Sendable {
   ///   - text: The transcription text to save as the note body.
   ///   - folderName: The target folder in Apple Notes. If `nil`, saves to the default folder.
   public var saveNote: @Sendable (_ text: String, _ folderName: String?) async throws -> Void
+
+  /// Append text to the most recent note in a folder.
+  ///
+  /// - Parameter text: The transcription text to append.
+  public var appendToNote: @Sendable (_ text: String) async throws -> Void
 }
 
 extension DependencyValues {

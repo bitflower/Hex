@@ -103,6 +103,7 @@ struct HistoryFeature {
     case stopPlayback
     case copyToClipboard(String)
     case saveToAppleNotes(String)
+    case appendToAppleNote(String)
     case deleteTranscript(UUID)
     case deleteAllTranscripts
     case confirmDeleteAll
@@ -163,6 +164,11 @@ struct HistoryFeature {
         let folderName = state.hexSettings.appleNotesFolderName
         return .run { [appleNotes] _ in
           try? await appleNotes.saveNote(text, folderName)
+        }
+
+      case let .appendToAppleNote(text):
+        return .run { [appleNotes] _ in
+          try? await appleNotes.appendToNote(text)
         }
 
       case let .deleteTranscript(id):

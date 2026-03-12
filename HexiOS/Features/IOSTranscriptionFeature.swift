@@ -35,6 +35,7 @@ struct IOSTranscriptionFeature {
     case copyResult
     case shareResult
     case saveToAppleNotes
+    case appendToAppleNote
     case clearResult
     case prewarmCompleted
   }
@@ -214,6 +215,14 @@ struct IOSTranscriptionFeature {
         let folderName = state.hexSettings.appleNotesFolderName
         return .run { [appleNotes] _ in
           try? await appleNotes.saveNote(text, folderName)
+          let haptic = await UINotificationFeedbackGenerator()
+          await haptic.notificationOccurred(.success)
+        }
+
+      case .appendToAppleNote:
+        guard let text = state.lastTranscriptionResult else { return .none }
+        return .run { [appleNotes] _ in
+          try? await appleNotes.appendToNote(text)
           let haptic = await UINotificationFeedbackGenerator()
           await haptic.notificationOccurred(.success)
         }

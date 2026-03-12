@@ -9,6 +9,10 @@ extension AppleNotesClient: DependencyKey {
     Self(
       saveNote: { text, folderName in
         try await saveNoteWithAppleScript(text: text, folderName: folderName)
+      },
+      appendToNote: { text in
+        // On macOS, append is not yet implemented — falls back to creating a new note
+        try await saveNoteWithAppleScript(text: text, folderName: nil)
       }
     )
   }
@@ -86,16 +90,23 @@ extension AppleNotesClient: DependencyKey {
   public static var liveValue: Self {
     Self(
       saveNote: { text, _ in
-        await MainActor.run {
-          UIPasteboard.general.string = text
-        }
-        if let url = URL(string: "mobilenotes://") {
-          await MainActor.run {
-            UIApplication.shared.open(url)
-          }
-        }
+        await runShortcut(name: "Hex Save Note", text: text)
+      },
+      appendToNote: { text in
+        await runShortcut(name: "Hex Append Note", text: text)
       }
     )
+  }
+}
+
+private func runShortcut(name: String, text: String) async {
+  guard let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        let encodedText = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        let url = URL(string: "shortcuts://run-shortcut?name=\(encodedName)&input=text&text=\(encodedText)")
+  else { return }
+
+  await MainActor.run {
+    UIApplication.shared.open(url)
   }
 }
 #endif

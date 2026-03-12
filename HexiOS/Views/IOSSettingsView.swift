@@ -27,18 +27,37 @@ struct IOSSettingsView: View {
           ))
         }
 
-        Section("Apple Notes") {
-          HStack {
-            Text("Folder")
-            Spacer()
-            TextField("Notes", text: Binding(
-              get: { store.hexSettings.appleNotesFolderName ?? "" },
-              set: { store.send(.setAppleNotesFolderName($0)) }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 160)
-            .multilineTextAlignment(.trailing)
+        Section {
+          shortcutGuide(
+            name: "Hex Save Note",
+            imageName: "shortcut-save-note",
+            steps: [
+              "Add a **Create Note** action",
+              "Set the body to **Shortcut Input**",
+              "Set the folder to your target folder (e.g., \"Stream of Thought\")"
+            ]
+          )
+          shortcutGuide(
+            name: "Hex Append Note",
+            imageName: "shortcut-append-note",
+            steps: [
+              "Add **Find Notes** — set folder to your target folder, sort by **Date Modified** (newest first), limit to **10**",
+              "Add **Choose from List** — set input to the found notes",
+              "Add **Append to Note** — set text to **Shortcut Input**, set note to **Chosen Item**"
+            ]
+          )
+
+          Button {
+            if let url = URL(string: "shortcuts://") {
+              UIApplication.shared.open(url)
+            }
+          } label: {
+            Label("Open Shortcuts App", systemImage: "arrow.up.forward.app")
           }
+        } header: {
+          Text("Apple Notes")
+        } footer: {
+          Text("These shortcuts let Hex create and append notes directly without interaction.")
         }
 
         Section("About") {
@@ -175,6 +194,67 @@ struct IOSSettingsView: View {
           .foregroundStyle(.secondary)
       }
     }
+  }
+
+  // MARK: - Shortcut Guide
+
+  @State private var expandedShortcut: String?
+
+  @ViewBuilder
+  private func shortcutGuide(name: String, imageName: String, steps: [String]) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Button {
+        withAnimation {
+          expandedShortcut = expandedShortcut == name ? nil : name
+        }
+      } label: {
+        HStack {
+          Label(name, systemImage: "command.square")
+            .font(.subheadline.weight(.semibold))
+          Spacer()
+          Image(systemName: expandedShortcut == name ? "chevron.up" : "chevron.down")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .tint(.primary)
+
+      if expandedShortcut == name {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+            HStack(alignment: .top, spacing: 6) {
+              Text("\(index + 1).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 16, alignment: .trailing)
+              Text(LocalizedStringKey(step))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+
+        if let uiImage = UIImage(named: imageName) ?? loadResourceImage(named: imageName) {
+          Image(uiImage: uiImage)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+      }
+    }
+    .padding(.vertical, 4)
+  }
+
+  private func loadResourceImage(named name: String) -> UIImage? {
+    if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+       let data = try? Data(contentsOf: url) {
+      return UIImage(data: data)
+    }
+    if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Images"),
+       let data = try? Data(contentsOf: url) {
+      return UIImage(data: data)
+    }
+    return nil
   }
 
   // MARK: - Helpers
