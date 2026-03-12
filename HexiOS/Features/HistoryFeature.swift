@@ -109,6 +109,7 @@ struct HistoryFeature {
     case confirmDeleteAll
     case playbackFinished
     case navigateToSettings
+    case openTranscript(String)
   }
 
   @Dependency(\.pasteboard) var pasteboard
@@ -202,6 +203,10 @@ struct HistoryFeature {
         }
 
       case .navigateToSettings:
+        return .none
+
+      case .openTranscript:
+        // Handled by parent (IOSAppFeature)
         return .none
       }
     }

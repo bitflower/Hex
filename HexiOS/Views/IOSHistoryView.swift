@@ -33,6 +33,10 @@ struct IOSHistoryView: View {
                 onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
                 onAppendToNote: { store.send(.appendToAppleNote(transcript.text)) }
               )
+              .contentShape(Rectangle())
+              .onTapGesture {
+                store.send(.openTranscript(transcript.text))
+              }
               .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                   store.send(.deleteTranscript(transcript.id))
@@ -95,61 +99,71 @@ struct IOSTranscriptRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
 
-      HStack(spacing: 12) {
-        Button(action: {
+      HStack(spacing: 16) {
+        historyActionButton(
+          label: showCopied ? "Copied" : "Copy",
+          icon: showCopied ? "checkmark" : "doc.on.doc",
+          tint: showCopied ? .green : .primary
+        ) {
           onCopy()
           withAnimation { showCopied = true }
           Task {
             try? await Task.sleep(for: .seconds(1.5))
             withAnimation { showCopied = false }
           }
-        }) {
-          Label(showCopied ? "Copied" : "Copy", systemImage: showCopied ? "checkmark" : "doc.on.doc")
-            .font(.caption)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(showCopied ? .green : .accentColor)
 
-        Button(action: {
+        historyActionButton(
+          label: showSavedToNotes ? "Saved" : "New Note",
+          icon: showSavedToNotes ? "checkmark" : "note.text",
+          tint: showSavedToNotes ? .green : .primary
+        ) {
           onSaveToNotes()
           withAnimation { showSavedToNotes = true }
           Task {
             try? await Task.sleep(for: .seconds(1.5))
             withAnimation { showSavedToNotes = false }
           }
-        }) {
-          Label(showSavedToNotes ? "Saved" : "New Note", systemImage: showSavedToNotes ? "checkmark" : "note.text")
-            .font(.caption)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(showSavedToNotes ? .green : .accentColor)
 
-        Button(action: {
+        historyActionButton(
+          label: showAppended ? "Appended" : "Append",
+          icon: showAppended ? "checkmark" : "note.text.badge.plus",
+          tint: showAppended ? .green : .primary
+        ) {
           onAppendToNote()
           withAnimation { showAppended = true }
           Task {
             try? await Task.sleep(for: .seconds(1.5))
             withAnimation { showAppended = false }
           }
-        }) {
-          Label(showAppended ? "Appended" : "Append", systemImage: showAppended ? "checkmark" : "note.text.badge.plus")
-            .font(.caption)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(showAppended ? .green : .accentColor)
 
-        Button(action: onPlay) {
-          Label(isPlaying ? "Stop" : "Play", systemImage: isPlaying ? "stop.fill" : "play.fill")
-            .font(.caption)
+        historyActionButton(
+          label: isPlaying ? "Stop" : "Play",
+          icon: isPlaying ? "stop.fill" : "play.fill",
+          tint: isPlaying ? .blue : .primary
+        ) {
+          onPlay()
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(isPlaying ? .blue : .secondary)
       }
     }
     .padding(.vertical, 4)
+  }
+
+  private func historyActionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      VStack(spacing: 4) {
+        Image(systemName: icon)
+          .font(.body)
+          .frame(height: 20)
+        Text(label)
+          .font(.caption2)
+          .lineLimit(1)
+      }
+      .frame(minWidth: 48)
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(tint)
   }
 }

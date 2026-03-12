@@ -22,6 +22,11 @@ struct IOSTranscriptionFeature {
     var lastTranscriptionResult: String?
     var transcriptionError: String?
     var recordingStartTime: Date?
+
+    // Append recording state
+    var isAppendRecording = false
+    var isAppendTranscribing = false
+    var pendingAppendText: String?
   }
 
   enum Action {
@@ -37,7 +42,16 @@ struct IOSTranscriptionFeature {
     case saveToAppleNotes
     case appendToAppleNote
     case clearResult
+    case openTranscript(String)
     case prewarmCompleted
+
+    // Append recording actions
+    case startAppendRecording
+    case stopAppendRecording
+    case cancelAppendRecording
+    case appendTranscriptionResult(String)
+    case appendTranscriptionFailed
+    case updateTranscriptionText(String)
   }
 
   @Dependency(\.recording) var recording
@@ -76,7 +90,8 @@ struct IOSTranscriptionFeature {
         return .none
 
       case .startRecording:
-        guard !state.isRecording, !state.isTranscribing else { return .none }
+        guard !state.isRecording, !state.isTranscribing,
+              !state.isAppendRecording, !state.isAppendTranscribing else { return .none }
         state.isRecording = true
         state.lastTranscriptionResult = nil
         state.transcriptionError = nil
@@ -227,9 +242,127 @@ struct IOSTranscriptionFeature {
           await haptic.notificationOccurred(.success)
         }
 
+      case .openTranscript(let text):
+        state.lastTranscriptionResult = text
+        state.transcriptionError = nil
+        return .none
+
       case .clearResult:
+        let wasAppendRecording = state.isAppendRecording
         state.lastTranscriptionResult = nil
         state.transcriptionError = nil
+        state.pendingAppendText = nil
+        state.isAppendTranscribing = false
+        state.isAppendRecording = false
+        if wasAppendRecording {
+          return .merge(
+            .cancel(id: CancelID.metering),
+            .run { _ in
+              _ = await recording.stopRecording()
+            }
+          )
+        }
+        return .none
+
+      // MARK: - Append Recording
+
+      case .startAppendRecording:
+        guard !state.isRecording, !state.isTranscribing,
+              !state.isAppendRecording, !state.isAppendTranscribing else { return .none }
+        state.isAppendRecording = true
+        state.recordingStartTime = date.now
+        soundEffects.play(.startRecording)
+
+        return .merge(
+          .run { _ in
+            await recording.startRecording()
+          },
+          .run { send in
+            let haptic = await UIImpactFeedbackGenerator(style: .medium)
+            await haptic.impactOccurred()
+            for await level in await recording.observeAudioLevel() {
+              await send(.audioLevelUpdated(level))
+            }
+          }
+          .cancellable(id: CancelID.metering)
+        )
+
+      case .stopAppendRecording:
+        guard state.isAppendRecording else { return .none }
+        state.isAppendRecording = false
+        state.isAppendTranscribing = true
+        soundEffects.play(.stopRecording)
+
+        let model = state.hexSettings.selectedModel
+        let language = state.hexSettings.outputLanguage
+        let wordRemappings = state.hexSettings.wordRemappings
+        let wordRemovals = state.hexSettings.wordRemovals
+        let wordRemovalsEnabled = state.hexSettings.wordRemovalsEnabled
+
+        return .merge(
+          .cancel(id: CancelID.metering),
+          .run { send in
+            let haptic = await UIImpactFeedbackGenerator(style: .light)
+            await haptic.impactOccurred()
+
+            let audioURL = await recording.stopRecording()
+
+            do {
+              var options = DecodingOptions()
+              if let language, !language.isEmpty {
+                options.language = language
+              }
+              var text = try await transcription.transcribe(audioURL, model, options) { _ in }
+
+              if wordRemovalsEnabled {
+                text = WordRemovalApplier.apply(text, removals: wordRemovals)
+              }
+              text = WordRemappingApplier.apply(text, remappings: wordRemappings)
+              text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+              try? FileManager.default.removeItem(at: audioURL)
+
+              await send(.appendTranscriptionResult(text))
+            } catch {
+              transcriptionLogger.error("Append transcription failed: \(error.localizedDescription)")
+              try? FileManager.default.removeItem(at: audioURL)
+              await send(.appendTranscriptionFailed)
+            }
+          }
+        )
+
+      case .cancelAppendRecording:
+        guard state.isAppendRecording else { return .none }
+        state.isAppendRecording = false
+        soundEffects.play(.cancel)
+        return .merge(
+          .cancel(id: CancelID.metering),
+          .run { _ in
+            _ = await recording.stopRecording()
+            let haptic = await UINotificationFeedbackGenerator()
+            await haptic.notificationOccurred(.warning)
+          }
+        )
+
+      case .appendTranscriptionResult(let text):
+        state.isAppendTranscribing = false
+        if !text.isEmpty {
+          state.pendingAppendText = text
+          soundEffects.play(.pasteTranscript)
+        }
+        return .none
+
+      case .appendTranscriptionFailed:
+        state.isAppendTranscribing = false
+        soundEffects.play(.cancel)
+        return .run { _ in
+          let haptic = await UINotificationFeedbackGenerator()
+          await haptic.notificationOccurred(.error)
+        }
+
+      case .updateTranscriptionText(let text):
+        state.lastTranscriptionResult = text
+        state.pendingAppendText = nil
         return .none
       }
     }
