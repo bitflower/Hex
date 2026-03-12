@@ -42,6 +42,7 @@ struct IOSTranscriptionFeature {
     case saveToAppleNotes
     case appendToAppleNote
     case clearResult
+    case openTranscript(String)
     case prewarmCompleted
 
     // Append recording actions
@@ -240,6 +241,11 @@ struct IOSTranscriptionFeature {
           let haptic = await UINotificationFeedbackGenerator()
           await haptic.notificationOccurred(.success)
         }
+
+      case .openTranscript(let text):
+        state.lastTranscriptionResult = text
+        state.transcriptionError = nil
+        return .none
 
       case .clearResult:
         let wasAppendRecording = state.isAppendRecording
