@@ -46,6 +46,13 @@ struct IOSTranscriptionFeature {
   @Dependency(\.transcriptPersistence) var transcriptPersistence
   @Dependency(\.pasteboard) var pasteboard
 
+  private static let datePrefixFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    return formatter
+  }()
+
   enum CancelID {
     case metering
   }
@@ -128,6 +135,9 @@ struct IOSTranscriptionFeature {
               text = WordRemappingApplier.apply(text, remappings: wordRemappings)
 
               text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+              // Add date prefix (YYYY-MM-DD)
+              text = Self.datePrefixFormatter.string(from: Date()) + " " + text
 
               // Save to history
               if saveHistory {
