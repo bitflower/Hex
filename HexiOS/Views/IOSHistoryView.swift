@@ -30,7 +30,7 @@ struct IOSHistoryView: View {
                 isPlaying: store.playingTranscriptID == transcript.id,
                 onPlay: { store.send(.playTranscript(transcript.id)) },
                 onCopy: { store.send(.copyToClipboard(transcript.text)) },
-                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
+                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.id, transcript.text)) },
                 onAppendToNote: { store.send(.appendToAppleNote(transcript.text)) }
               )
               .contentShape(Rectangle())
@@ -82,6 +82,8 @@ struct IOSTranscriptRow: View {
   @State private var showSavedToNotes = false
   @State private var showAppended = false
 
+  private var notesSaved: Bool { showSavedToNotes || transcript.savedToAppleNotes }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(transcript.text)
@@ -114,9 +116,9 @@ struct IOSTranscriptRow: View {
         }
 
         historyActionButton(
-          label: showSavedToNotes ? "Saved" : "New Note",
-          icon: showSavedToNotes ? "checkmark" : "note.text",
-          tint: showSavedToNotes ? .green : .primary
+          label: notesSaved ? "Saved" : "New Note",
+          icon: notesSaved ? "checkmark" : "note.text",
+          tint: notesSaved ? .green : .primary
         ) {
           onSaveToNotes()
           withAnimation { showSavedToNotes = true }

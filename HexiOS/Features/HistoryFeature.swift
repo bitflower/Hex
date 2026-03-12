@@ -102,7 +102,8 @@ struct HistoryFeature {
     case playTranscript(UUID)
     case stopPlayback
     case copyToClipboard(String)
-    case saveToAppleNotes(String)
+    case saveToAppleNotes(UUID, String)
+    case saveToAppleNotesResult(UUID, Result<Void, Error>)
     case appendToAppleNote(String)
     case deleteTranscript(UUID)
     case deleteAllTranscripts
@@ -161,11 +162,28 @@ struct HistoryFeature {
           await pasteboard.copy(text)
         }
 
-      case let .saveToAppleNotes(text):
+      case let .saveToAppleNotes(id, text):
         let folderName = state.hexSettings.appleNotesFolderName
-        return .run { [appleNotes] _ in
-          try? await appleNotes.saveNote(text, folderName)
+        return .run { [appleNotes] send in
+          do {
+            try await appleNotes.saveNote(text, folderName)
+            await send(.saveToAppleNotesResult(id, .success(())))
+          } catch {
+            await send(.saveToAppleNotesResult(id, .failure(error)))
+          }
         }
+
+      case let .saveToAppleNotesResult(id, .success):
+        _ = state.$transcriptionHistory.withLock { history in
+          if let index = history.history.firstIndex(where: { $0.id == id }) {
+            history.history[index].savedToAppleNotes = true
+          }
+        }
+        return .none
+
+      case let .saveToAppleNotesResult(_, .failure(error)):
+        historyLogger.error("Failed to save to Apple Notes: \(error.localizedDescription)")
+        return .none
 
       case let .appendToAppleNote(text):
         return .run { [appleNotes] _ in

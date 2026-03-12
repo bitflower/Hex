@@ -16,6 +16,7 @@ struct IOSAppFeature {
     var history = HistoryFeature.State()
     var activeTab: ActiveTab = .record
     var microphonePermission: PermissionStatus = .notDetermined
+    var openedFromHistory: Bool = false
   }
 
   enum Action {
@@ -76,7 +77,15 @@ struct IOSAppFeature {
 
       case .history(.openTranscript(let text)):
         state.activeTab = .record
+        state.openedFromHistory = true
         return .send(.transcription(.openTranscript(text)))
+
+      case .transcription(.clearResult):
+        if state.openedFromHistory {
+          state.openedFromHistory = false
+          state.activeTab = .history
+        }
+        return .none
 
       case .transcription, .settings, .history:
         return .none
