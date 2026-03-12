@@ -47,6 +47,7 @@ struct IOSTranscriptionFeature {
     case stopAppendRecording
     case cancelAppendRecording
     case appendTranscriptionResult(String)
+    case appendTranscriptionFailed
     case updateTranscriptionText(String)
   }
 
@@ -288,7 +289,8 @@ struct IOSTranscriptionFeature {
               await send(.appendTranscriptionResult(text))
             } catch {
               transcriptionLogger.error("Append transcription failed: \(error.localizedDescription)")
-              await send(.appendTranscriptionResult(""))
+              try? FileManager.default.removeItem(at: audioURL)
+              await send(.appendTranscriptionFailed)
             }
           }
         )
@@ -313,6 +315,14 @@ struct IOSTranscriptionFeature {
           soundEffects.play(.pasteTranscript)
         }
         return .none
+
+      case .appendTranscriptionFailed:
+        state.isAppendTranscribing = false
+        soundEffects.play(.cancel)
+        return .run { _ in
+          let haptic = await UINotificationFeedbackGenerator()
+          await haptic.notificationOccurred(.error)
+        }
 
       case .updateTranscriptionText(let text):
         state.lastTranscriptionResult = text
