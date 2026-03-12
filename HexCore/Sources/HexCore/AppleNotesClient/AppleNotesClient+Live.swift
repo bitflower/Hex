@@ -18,6 +18,9 @@ private func saveNoteWithAppleScript(text: String, folderName: String?) async th
   let escapedText = text
     .replacingOccurrences(of: "\\", with: "\\\\")
     .replacingOccurrences(of: "\"", with: "\\\"")
+    .replacingOccurrences(of: "\n", with: "\\n")
+    .replacingOccurrences(of: "\r", with: "\\r")
+    .replacingOccurrences(of: "\t", with: "\\t")
 
   let folderClause: String
   if let folderName, !folderName.isEmpty {
@@ -86,7 +89,7 @@ extension AppleNotesClient: DependencyKey {
         await MainActor.run {
           UIPasteboard.general.string = text
         }
-        if let url = URL(string: "applenotes://") {
+        if let url = URL(string: "mobilenotes://") {
           await MainActor.run {
             UIApplication.shared.open(url)
           }

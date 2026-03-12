@@ -96,7 +96,6 @@ struct HistoryFeature {
 		var playingTranscriptID: UUID?
 		var audioPlayer: AVAudioPlayer?
 		var audioPlayerController: AudioPlayerController?
-		var savedToNotesTranscriptID: UUID?
 
 		mutating func stopAudioPlayback() {
 			audioPlayerController?.stop()
