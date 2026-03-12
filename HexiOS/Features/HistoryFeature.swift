@@ -84,6 +84,7 @@ class AudioPlayerController: NSObject, AVAudioPlayerDelegate {
 struct HistoryFeature {
   @ObservableState
   struct State: Equatable {
+    @Shared(.hexSettings) var hexSettings: HexSettings
     @Shared(.transcriptionHistory) var transcriptionHistory: TranscriptionHistory
     var playingTranscriptID: UUID?
     var audioPlayer: AVAudioPlayer?
@@ -101,6 +102,8 @@ struct HistoryFeature {
     case playTranscript(UUID)
     case stopPlayback
     case copyToClipboard(String)
+    case saveToAppleNotes(String)
+    case appendToAppleNote(String)
     case deleteTranscript(UUID)
     case deleteAllTranscripts
     case confirmDeleteAll
@@ -109,6 +112,7 @@ struct HistoryFeature {
   }
 
   @Dependency(\.pasteboard) var pasteboard
+  @Dependency(\.appleNotes) var appleNotes
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -154,6 +158,17 @@ struct HistoryFeature {
       case let .copyToClipboard(text):
         return .run { [pasteboard] _ in
           await pasteboard.copy(text)
+        }
+
+      case let .saveToAppleNotes(text):
+        let folderName = state.hexSettings.appleNotesFolderName
+        return .run { [appleNotes] _ in
+          try? await appleNotes.saveNote(text, folderName)
+        }
+
+      case let .appendToAppleNote(text):
+        return .run { [appleNotes] _ in
+          try? await appleNotes.appendToNote(text)
         }
 
       case let .deleteTranscript(id):

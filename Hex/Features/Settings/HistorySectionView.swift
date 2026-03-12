@@ -62,6 +62,31 @@ struct HistorySectionView: View {
 					.foregroundColor(.secondary)
 			}
 		}
+
+		Section {
+			Label {
+				HStack {
+					Text("Apple Notes Folder")
+					Spacer()
+					TextField("Notes", text: Binding(
+						get: { store.hexSettings.appleNotesFolderName ?? "" },
+						set: { newValue in
+							store.hexSettings.appleNotesFolderName = newValue.isEmpty ? nil : newValue
+						}
+					))
+					.textFieldStyle(.roundedBorder)
+					.frame(width: 160)
+				}
+			} icon: {
+				Image(systemName: "note.text")
+			}
+		} header: {
+			Text("Apple Notes")
+		} footer: {
+			Text("Transcriptions can be saved to Apple Notes from the history view. Set a folder name to organize your notes.")
+				.font(.footnote)
+				.foregroundColor(.secondary)
+		}
 		.enableInjection()
 	}
 }

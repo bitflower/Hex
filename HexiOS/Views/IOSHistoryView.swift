@@ -29,7 +29,9 @@ struct IOSHistoryView: View {
                 transcript: transcript,
                 isPlaying: store.playingTranscriptID == transcript.id,
                 onPlay: { store.send(.playTranscript(transcript.id)) },
-                onCopy: { store.send(.copyToClipboard(transcript.text)) }
+                onCopy: { store.send(.copyToClipboard(transcript.text)) },
+                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
+                onAppendToNote: { store.send(.appendToAppleNote(transcript.text)) }
               )
               .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
@@ -70,7 +72,11 @@ struct IOSTranscriptRow: View {
   let isPlaying: Bool
   let onPlay: () -> Void
   let onCopy: () -> Void
+  let onSaveToNotes: () -> Void
+  let onAppendToNote: () -> Void
   @State private var showCopied = false
+  @State private var showSavedToNotes = false
+  @State private var showAppended = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -104,6 +110,36 @@ struct IOSTranscriptRow: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .tint(showCopied ? .green : .accentColor)
+
+        Button(action: {
+          onSaveToNotes()
+          withAnimation { showSavedToNotes = true }
+          Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation { showSavedToNotes = false }
+          }
+        }) {
+          Label(showSavedToNotes ? "Saved" : "New Note", systemImage: showSavedToNotes ? "checkmark" : "note.text")
+            .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(showSavedToNotes ? .green : .accentColor)
+
+        Button(action: {
+          onAppendToNote()
+          withAnimation { showAppended = true }
+          Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation { showAppended = false }
+          }
+        }) {
+          Label(showAppended ? "Appended" : "Append", systemImage: showAppended ? "checkmark" : "note.text.badge.plus")
+            .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(showAppended ? .green : .accentColor)
 
         Button(action: onPlay) {
           Label(isPlaying ? "Stop" : "Play", systemImage: isPlaying ? "stop.fill" : "play.fill")
