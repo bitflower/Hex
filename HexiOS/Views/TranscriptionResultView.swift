@@ -4,6 +4,7 @@ import SwiftUI
 struct TranscriptionResultView: View {
   let store: StoreOf<IOSTranscriptionFeature>
   @State private var showCopied = false
+  @State private var showSavedToNotes = false
   @State private var editableText: String = ""
 
   var body: some View {
@@ -68,6 +69,18 @@ struct TranscriptionResultView: View {
           ShareLink(item: text) {
             Label("Share", systemImage: "square.and.arrow.up")
           }
+
+          Button {
+            store.send(.saveToAppleNotes)
+            withAnimation { showSavedToNotes = true }
+            Task {
+              try? await Task.sleep(for: .seconds(1.5))
+              withAnimation { showSavedToNotes = false }
+            }
+          } label: {
+            Label(showSavedToNotes ? "Saved" : "Notes", systemImage: showSavedToNotes ? "checkmark" : "note.text")
+          }
+          .tint(showSavedToNotes ? .green : .accentColor)
         }
 
         Spacer()

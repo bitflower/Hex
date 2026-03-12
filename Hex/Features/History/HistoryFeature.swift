@@ -91,10 +91,12 @@ class AudioPlayerController: NSObject, AVAudioPlayerDelegate {
 struct HistoryFeature {
 	@ObservableState
 	struct State: Equatable {
+		@Shared(.hexSettings) var hexSettings: HexSettings
 		@Shared(.transcriptionHistory) var transcriptionHistory: TranscriptionHistory
 		var playingTranscriptID: UUID?
 		var audioPlayer: AVAudioPlayer?
 		var audioPlayerController: AudioPlayerController?
+		var savedToNotesTranscriptID: UUID?
 
 		mutating func stopAudioPlayback() {
 			audioPlayerController?.stop()
@@ -108,6 +110,8 @@ struct HistoryFeature {
 		case playTranscript(UUID)
 		case stopPlayback
 		case copyToClipboard(String)
+		case saveToAppleNotes(String)
+		case saveToAppleNotesResult(Result<Void, Error>)
 		case deleteTranscript(UUID)
 		case deleteAllTranscripts
 		case confirmDeleteAll
@@ -116,6 +120,7 @@ struct HistoryFeature {
 	}
 
 	@Dependency(\.pasteboard) var pasteboard
+	@Dependency(\.appleNotes) var appleNotes
 
 	var body: some ReducerOf<Self> {
 		Reduce { state, action in
@@ -170,6 +175,24 @@ struct HistoryFeature {
 					await pasteboard.copy(text)
 				}
 
+			case let .saveToAppleNotes(text):
+				let folderName = state.hexSettings.appleNotesFolderName
+				return .run { [appleNotes] send in
+					do {
+						try await appleNotes.saveNote(text, folderName)
+						await send(.saveToAppleNotesResult(.success(())))
+					} catch {
+						await send(.saveToAppleNotesResult(.failure(error)))
+					}
+				}
+
+			case .saveToAppleNotesResult(.success):
+				return .none
+
+			case .saveToAppleNotesResult(.failure(let error)):
+				historyLogger.error("Failed to save to Apple Notes: \(error.localizedDescription)")
+				return .none
+
 			case let .deleteTranscript(id):
 				guard let index = state.transcriptionHistory.history.firstIndex(where: { $0.id == id }) else {
 					return .none
@@ -219,6 +242,7 @@ struct TranscriptView: View {
 	let isPlaying: Bool
 	let onPlay: () -> Void
 	let onCopy: () -> Void
+	let onSaveToNotes: () -> Void
 	let onDelete: () -> Void
 
 	var body: some View {
@@ -274,6 +298,21 @@ struct TranscriptView: View {
 					.foregroundStyle(showCopied ? .green : .secondary)
 					.help("Copy to clipboard")
 
+					Button {
+						onSaveToNotes()
+						showSaveToNotesAnimation()
+					} label: {
+						HStack(spacing: 4) {
+							Image(systemName: showSavedToNotes ? "checkmark" : "note.text")
+							if showSavedToNotes {
+								Text("Saved").font(.caption)
+							}
+						}
+					}
+					.buttonStyle(.plain)
+					.foregroundStyle(showSavedToNotes ? .green : .secondary)
+					.help("Save to Apple Notes")
+
 					Button(action: onPlay) {
 						Image(systemName: isPlaying ? "stop.fill" : "play.fill")
 					}
@@ -305,11 +344,14 @@ struct TranscriptView: View {
 		.onDisappear {
 			// Clean up any running task when view disappears
 			copyTask?.cancel()
+			saveToNotesTask?.cancel()
 		}
 	}
 
 	@State private var showCopied = false
 	@State private var copyTask: Task<Void, Error>?
+	@State private var showSavedToNotes = false
+	@State private var saveToNotesTask: Task<Void, Error>?
 
 	private func showCopyAnimation() {
 		copyTask?.cancel()
@@ -326,6 +368,22 @@ struct TranscriptView: View {
 			}
 		}
 	}
+
+	private func showSaveToNotesAnimation() {
+		saveToNotesTask?.cancel()
+
+		saveToNotesTask = Task {
+			withAnimation {
+				showSavedToNotes = true
+			}
+
+			try await Task.sleep(for: .seconds(1.5))
+
+			withAnimation {
+				showSavedToNotes = false
+			}
+		}
+	}
 }
 
 #Preview {
@@ -334,6 +392,7 @@ struct TranscriptView: View {
 		isPlaying: false,
 		onPlay: {},
 		onCopy: {},
+		onSaveToNotes: {},
 		onDelete: {}
 	)
 }
@@ -371,6 +430,7 @@ struct HistoryView: View {
                   isPlaying: store.playingTranscriptID == transcript.id,
                   onPlay: { store.send(.playTranscript(transcript.id)) },
                   onCopy: { store.send(.copyToClipboard(transcript.text)) },
+                  onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
                   onDelete: { store.send(.deleteTranscript(transcript.id)) }
                 )
               }

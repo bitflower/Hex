@@ -18,6 +18,7 @@ struct IOSSettingsFeature {
     case setSoundVolume(Double)
     case toggleHistory
     case setLanguage(String?)
+    case setAppleNotesFolderName(String)
   }
 
   var body: some ReducerOf<Self> {
@@ -49,6 +50,10 @@ struct IOSSettingsFeature {
 
       case .setLanguage(let code):
         state.$hexSettings.withLock { $0.outputLanguage = code }
+        return .none
+
+      case .setAppleNotesFolderName(let name):
+        state.$hexSettings.withLock { $0.appleNotesFolderName = name.isEmpty ? nil : name }
         return .none
 
       case .modelDownload:

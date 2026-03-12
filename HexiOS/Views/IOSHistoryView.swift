@@ -29,7 +29,8 @@ struct IOSHistoryView: View {
                 transcript: transcript,
                 isPlaying: store.playingTranscriptID == transcript.id,
                 onPlay: { store.send(.playTranscript(transcript.id)) },
-                onCopy: { store.send(.copyToClipboard(transcript.text)) }
+                onCopy: { store.send(.copyToClipboard(transcript.text)) },
+                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) }
               )
               .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
@@ -70,7 +71,9 @@ struct IOSTranscriptRow: View {
   let isPlaying: Bool
   let onPlay: () -> Void
   let onCopy: () -> Void
+  let onSaveToNotes: () -> Void
   @State private var showCopied = false
+  @State private var showSavedToNotes = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -104,6 +107,21 @@ struct IOSTranscriptRow: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .tint(showCopied ? .green : .accentColor)
+
+        Button(action: {
+          onSaveToNotes()
+          withAnimation { showSavedToNotes = true }
+          Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation { showSavedToNotes = false }
+          }
+        }) {
+          Label(showSavedToNotes ? "Saved" : "Notes", systemImage: showSavedToNotes ? "checkmark" : "note.text")
+            .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(showSavedToNotes ? .green : .accentColor)
 
         Button(action: onPlay) {
           Label(isPlaying ? "Stop" : "Play", systemImage: isPlaying ? "stop.fill" : "play.fill")

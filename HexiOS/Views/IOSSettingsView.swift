@@ -27,6 +27,20 @@ struct IOSSettingsView: View {
           ))
         }
 
+        Section("Apple Notes") {
+          HStack {
+            Text("Folder")
+            Spacer()
+            TextField("Notes", text: Binding(
+              get: { store.hexSettings.appleNotesFolderName ?? "" },
+              set: { store.send(.setAppleNotesFolderName($0)) }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 160)
+            .multilineTextAlignment(.trailing)
+          }
+        }
+
         Section("About") {
           LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
           LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")

@@ -34,6 +34,7 @@ struct IOSTranscriptionFeature {
     case transcriptionFailed(String)
     case copyResult
     case shareResult
+    case saveToAppleNotes
     case clearResult
     case prewarmCompleted
   }
@@ -45,6 +46,7 @@ struct IOSTranscriptionFeature {
   @Dependency(\.date) var date
   @Dependency(\.transcriptPersistence) var transcriptPersistence
   @Dependency(\.pasteboard) var pasteboard
+  @Dependency(\.appleNotes) var appleNotes
 
   enum CancelID {
     case metering
@@ -196,6 +198,15 @@ struct IOSTranscriptionFeature {
 
       case .shareResult:
         return .none
+
+      case .saveToAppleNotes:
+        guard let text = state.lastTranscriptionResult else { return .none }
+        let folderName = state.hexSettings.appleNotesFolderName
+        return .run { [appleNotes] _ in
+          try? await appleNotes.saveNote(text, folderName)
+          let haptic = await UINotificationFeedbackGenerator()
+          await haptic.notificationOccurred(.success)
+        }
 
       case .clearResult:
         state.lastTranscriptionResult = nil
