@@ -28,15 +28,12 @@ struct IOSHistoryView: View {
               IOSTranscriptRow(
                 transcript: transcript,
                 isPlaying: store.playingTranscriptID == transcript.id,
+                onTap: { store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText)) },
                 onPlay: { store.send(.playTranscript(transcript.id)) },
                 onCopy: { store.send(.copyToClipboard(transcript.refinedText ?? transcript.text)) },
-                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text)) },
-                onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text)) }
+                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) },
+                onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) }
               )
-              .contentShape(Rectangle())
-              .onTapGesture {
-                store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText))
-              }
               .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
                   store.send(.deleteTranscript(transcript.id))
@@ -74,6 +71,7 @@ struct IOSHistoryView: View {
 struct IOSTranscriptRow: View {
   let transcript: Transcript
   let isPlaying: Bool
+  let onTap: () -> Void
   let onPlay: () -> Void
   let onCopy: () -> Void
   let onSaveToNotes: () -> Void
@@ -84,25 +82,34 @@ struct IOSTranscriptRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text(transcript.refinedText ?? transcript.text)
-        .font(.body)
-        .lineLimit(4)
+      VStack(alignment: .leading, spacing: 8) {
+        Text(transcript.refinedText ?? transcript.text)
+          .font(.body)
+          .lineLimit(4)
 
-      HStack(spacing: 6) {
-        Image(systemName: "clock")
-        Text(transcript.timestamp.relativeFormatted())
-        Text("·")
-        Text(transcript.timestamp.formatted(date: .omitted, time: .shortened))
-        Text("·")
-        Text(String(format: "%.1fs", transcript.duration))
-        if transcript.refinedText != nil {
-          Image(systemName: "sparkles")
-            .font(.caption2)
-            .foregroundStyle(.purple)
+        HStack(spacing: 6) {
+          Image(systemName: "clock")
+          Text(transcript.timestamp.relativeFormatted())
+          Text("·")
+          Text(transcript.timestamp.formatted(date: .omitted, time: .shortened))
+          Text("·")
+          Text(String(format: "%.1fs", transcript.duration))
+          if transcript.refinedText != nil {
+            Image(systemName: "sparkles")
+              .font(.caption2)
+              .foregroundStyle(.purple)
+          }
+          if transcript.savedToNotes == true {
+            Image(systemName: "note.text")
+              .font(.caption2)
+              .foregroundStyle(.orange)
+          }
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
-      .font(.caption)
-      .foregroundStyle(.secondary)
+      .contentShape(Rectangle())
+      .onTapGesture { onTap() }
 
       HStack(spacing: 16) {
         historyActionButton(
@@ -168,7 +175,7 @@ struct IOSTranscriptRow: View {
       }
       .frame(minWidth: 48)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.borderless)
     .foregroundStyle(tint)
   }
 }

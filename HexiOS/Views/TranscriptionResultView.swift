@@ -8,7 +8,9 @@ struct TranscriptionResultView: View {
   @State private var showAppended = false
   @State private var editableText: String = ""
   @State private var selection: TextSelection?
+  @State private var editableRefinedText: String = ""
   @State private var refinementDisplayMode: RefinementDisplayMode = .original
+  @FocusState private var isTextEditorFocused: Bool
 
   var body: some View {
     VStack(spacing: 0) {
@@ -31,7 +33,13 @@ struct TranscriptionResultView: View {
 
         Spacer()
 
-        Button { store.send(.clearResult) } label: {
+        Button {
+          // Sync any unsaved edits before closing
+          if editableText != store.lastTranscriptionResult {
+            store.send(.updateTranscriptionText(editableText))
+          }
+          store.send(.clearResult)
+        } label: {
           Image(systemName: "xmark.circle.fill")
             .foregroundStyle(.secondary)
             .font(.title3)
@@ -72,18 +80,19 @@ struct TranscriptionResultView: View {
         }
         .padding()
       } else {
-        if refinementDisplayMode == .refined, case .completed(let refinedText) = store.refinementStatus {
-          ScrollView {
-            Text(refinedText)
-              .font(.body)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.horizontal, 12)
-              .padding(.vertical, 8)
-              .textSelection(.enabled)
-          }
-          .frame(minHeight: 100)
+        if refinementDisplayMode == .refined, case .completed = store.refinementStatus {
+          TextEditor(text: $editableRefinedText)
+            .focused($isTextEditorFocused)
+            .font(.body)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 100)
+            .onChange(of: editableRefinedText) { _, newValue in
+              store.send(.updateRefinedText(newValue))
+            }
         } else {
           TextEditor(text: $editableText, selection: $selection)
+            .focused($isTextEditorFocused)
             .font(.body)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -91,8 +100,15 @@ struct TranscriptionResultView: View {
             .onAppear {
               editableText = store.lastTranscriptionResult ?? ""
             }
+            .onChange(of: isTextEditorFocused) { _, focused in
+              if !focused, editableText != store.lastTranscriptionResult {
+                store.send(.updateTranscriptionText(editableText))
+              }
+            }
             .onChange(of: store.lastTranscriptionResult) { _, newValue in
-              editableText = newValue ?? ""
+              if newValue != editableText {
+                editableText = newValue ?? ""
+              }
             }
             .onChange(of: store.pendingAppendText) { _, newValue in
               if let newText = newValue, !newText.isEmpty {
@@ -130,13 +146,7 @@ struct TranscriptionResultView: View {
               icon: showCopied ? "checkmark" : "doc.on.doc",
               tint: showCopied ? .green : .primary
             ) {
-              let textToCopy: String
-              if refinementDisplayMode == .refined, case .completed(let refined) = store.refinementStatus {
-                textToCopy = refined
-              } else {
-                textToCopy = editableText
-              }
-              UIPasteboard.general.string = textToCopy
+              UIPasteboard.general.string = activeText
               let generator = UINotificationFeedbackGenerator()
               generator.notificationOccurred(.success)
               withAnimation { showCopied = true }
@@ -147,12 +157,7 @@ struct TranscriptionResultView: View {
             }
 
             if let text = store.lastTranscriptionResult, !text.isEmpty {
-              ShareLink(item: {
-                if refinementDisplayMode == .refined, case .completed(let refined) = store.refinementStatus {
-                  return refined
-                }
-                return editableText.isEmpty ? text : editableText
-              }()) {
+              ShareLink(item: activeText) {
                 actionLabel(label: "Share", icon: "square.and.arrow.up")
                   .foregroundStyle(.primary)
               }
@@ -163,7 +168,7 @@ struct TranscriptionResultView: View {
                 icon: showSavedToNotes ? "checkmark" : "note.text",
                 tint: showSavedToNotes ? .green : .primary
               ) {
-                store.send(.saveToAppleNotes)
+                store.send(.saveToAppleNotes(activeText))
                 withAnimation { showSavedToNotes = true }
                 Task {
                   try? await Task.sleep(for: .seconds(1.5))
@@ -176,11 +181,23 @@ struct TranscriptionResultView: View {
                 icon: showAppended ? "checkmark" : "note.text.badge.plus",
                 tint: showAppended ? .green : .primary
               ) {
-                store.send(.appendToAppleNote)
+                store.send(.appendToAppleNote(activeText))
                 withAnimation { showAppended = true }
                 Task {
                   try? await Task.sleep(for: .seconds(1.5))
                   withAnimation { showAppended = false }
+                }
+              }
+
+              if store.hexSettings.refinementEnabled,
+                 refinementDisplayMode == .original,
+                 !store.refinementStatus.isProcessing {
+                actionButton(
+                  label: "Refine",
+                  icon: "wand.and.stars",
+                  tint: .primary
+                ) {
+                  store.send(.retriggerRefinement)
                 }
               }
             }
@@ -199,15 +216,37 @@ struct TranscriptionResultView: View {
     .clipShape(RoundedRectangle(cornerRadius: 16))
     .shadow(radius: 20, y: 10)
     .padding()
+    .toolbar {
+      ToolbarItemGroup(placement: .keyboard) {
+        Spacer()
+        Button("Done") {
+          isTextEditorFocused = false
+        }
+      }
+    }
     .transition(.move(edge: .bottom).combined(with: .opacity))
     .onChange(of: store.refinementStatus) { _, newStatus in
-      if case .completed = newStatus {
+      if case .completed(let refined) = newStatus {
+        editableRefinedText = refined
         withAnimation { refinementDisplayMode = .refined }
+      }
+    }
+    .onAppear {
+      if case .completed(let refined) = store.refinementStatus {
+        editableRefinedText = refined
       }
     }
     .onChange(of: store.lastTranscriptionResult) { _, _ in
       refinementDisplayMode = .original
     }
+  }
+
+  /// Returns the text matching the currently active display mode (refined or original/edited).
+  private var activeText: String {
+    if refinementDisplayMode == .refined, case .completed = store.refinementStatus {
+      return editableRefinedText
+    }
+    return editableText
   }
 
   private func actionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {

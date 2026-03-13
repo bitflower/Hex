@@ -9,6 +9,7 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
     public var duration: TimeInterval
     public var sourceAppBundleID: String?
     public var sourceAppName: String?
+    public var savedToNotes: Bool?
 
     public init(
         id: UUID = UUID(),
@@ -18,7 +19,8 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
         audioPath: URL,
         duration: TimeInterval,
         sourceAppBundleID: String? = nil,
-        sourceAppName: String? = nil
+        sourceAppName: String? = nil,
+        savedToNotes: Bool = false
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -28,6 +30,7 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
         self.duration = duration
         self.sourceAppBundleID = sourceAppBundleID
         self.sourceAppName = sourceAppName
+        self.savedToNotes = savedToNotes
     }
 }
 

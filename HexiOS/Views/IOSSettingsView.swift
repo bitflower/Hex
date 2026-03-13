@@ -4,6 +4,7 @@ import SwiftUI
 
 struct IOSSettingsView: View {
   @Bindable var store: StoreOf<IOSSettingsFeature>
+  @FocusState private var isInstructionsFocused: Bool
 
   var body: some View {
     NavigationStack {
@@ -42,6 +43,7 @@ struct IOSSettingsView: View {
                 get: { store.hexSettings.refinementInstructions },
                 set: { store.send(.setRefinementInstructions($0)) }
               ))
+              .focused($isInstructionsFocused)
               .font(.body)
               .frame(minHeight: 80)
               .overlay(
@@ -135,6 +137,14 @@ struct IOSSettingsView: View {
         }
       }
       .navigationTitle("Settings")
+      .toolbar {
+        ToolbarItemGroup(placement: .keyboard) {
+          Spacer()
+          Button("Done") {
+            isInstructionsFocused = false
+          }
+        }
+      }
       .task { store.send(.task) }
     }
   }

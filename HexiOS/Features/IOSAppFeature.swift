@@ -15,6 +15,7 @@ struct IOSAppFeature {
     var settings = IOSSettingsFeature.State()
     var history = HistoryFeature.State()
     var activeTab: ActiveTab = .record
+    var tabBeforeTranscriptOpen: ActiveTab?
     var microphonePermission: PermissionStatus = .notDetermined
   }
 
@@ -75,8 +76,12 @@ struct IOSAppFeature {
         return .none
 
       case .history(.openTranscript(let text, let refinedText)):
-        state.activeTab = .record
+        state.tabBeforeTranscriptOpen = state.activeTab
         return .send(.transcription(.openTranscriptWithRefinement(text, refinedText)))
+
+      case .transcription(.clearResult):
+        state.tabBeforeTranscriptOpen = nil
+        return .none
 
       case .transcription, .settings, .history:
         return .none
