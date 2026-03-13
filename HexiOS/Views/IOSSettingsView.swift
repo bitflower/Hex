@@ -28,6 +28,75 @@ struct IOSSettingsView: View {
         }
 
         Section {
+          Toggle("Enable AI Refinement", isOn: Binding(
+            get: { store.hexSettings.refinementEnabled },
+            set: { _ in store.send(.toggleRefinement) }
+          ))
+
+          if store.hexSettings.refinementEnabled {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Instructions")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              TextEditor(text: Binding(
+                get: { store.hexSettings.refinementInstructions },
+                set: { store.send(.setRefinementInstructions($0)) }
+              ))
+              .font(.body)
+              .frame(minHeight: 80)
+              .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                  .stroke(Color.secondary.opacity(0.2))
+              )
+            }
+
+            ForEach(store.hexSettings.termReplacements) { replacement in
+              HStack(spacing: 8) {
+                TextField("From", text: Binding(
+                  get: { replacement.from },
+                  set: { store.send(.updateTermReplacement(replacement.id, from: $0, to: replacement.to)) }
+                ))
+                .textFieldStyle(.roundedBorder)
+
+                Image(systemName: "arrow.right")
+                  .foregroundStyle(.secondary)
+                  .font(.caption)
+
+                TextField("To", text: Binding(
+                  get: { replacement.to },
+                  set: { store.send(.updateTermReplacement(replacement.id, from: replacement.from, to: $0)) }
+                ))
+                .textFieldStyle(.roundedBorder)
+
+                Button {
+                  store.send(.deleteTermReplacement(replacement.id))
+                } label: {
+                  Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+              }
+            }
+
+            Button {
+              store.send(.addTermReplacement)
+            } label: {
+              Label("Add Replacement", systemImage: "plus.circle")
+            }
+
+            Button(role: .destructive) {
+              store.send(.resetRefinementDefaults)
+            } label: {
+              Text("Reset to Defaults")
+            }
+          }
+        } header: {
+          Text("AI Refinement")
+        } footer: {
+          Text("Uses Apple's on-device language model to clean up transcriptions. Requires iPhone 16 Pro or later.")
+        }
+
+        Section {
           shortcutGuide(
             name: "Hex Save Note",
             imageName: "shortcut-save-note",

@@ -61,6 +61,11 @@ public struct HexSettings: Codable, Equatable, Sendable {
 	public var wordRemovals: [WordRemoval]
 	public var wordRemappings: [WordRemapping]
 	public var appleNotesFolderName: String?
+	public var refinementEnabled: Bool
+	public var refinementInstructions: String
+	public var termReplacements: [TermReplacement]
+
+	public static let defaultRefinementInstructions = "Bereinige diese Sprachtranskription. Korrigiere Grammatik, entferne Füllwörter (äh, ähm, halt, sozusagen) und vereinfache Sätze. Behalte die ursprüngliche Bedeutung und den Ton bei."
 
 	private mutating func normalizeDoubleTapSettings() {
 		if !doubleTapLockEnabled {
@@ -92,7 +97,10 @@ public struct HexSettings: Codable, Equatable, Sendable {
 		wordRemovalsEnabled: Bool = false,
 		wordRemovals: [WordRemoval] = HexSettings.defaultWordRemovals,
 		wordRemappings: [WordRemapping] = [],
-		appleNotesFolderName: String? = nil
+		appleNotesFolderName: String? = nil,
+		refinementEnabled: Bool = true,
+		refinementInstructions: String = HexSettings.defaultRefinementInstructions,
+		termReplacements: [TermReplacement] = []
 	) {
 		self.soundEffectsEnabled = soundEffectsEnabled
 		self.soundEffectsVolume = soundEffectsVolume
@@ -118,6 +126,9 @@ public struct HexSettings: Codable, Equatable, Sendable {
 		self.wordRemovals = wordRemovals
 		self.wordRemappings = wordRemappings
 		self.appleNotesFolderName = appleNotesFolderName
+		self.refinementEnabled = refinementEnabled
+		self.refinementInstructions = refinementInstructions
+		self.termReplacements = termReplacements
 		normalizeDoubleTapSettings()
 	}
 
@@ -166,6 +177,9 @@ private enum HexSettingKey: String, CodingKey, CaseIterable {
 	case wordRemovals
 	case wordRemappings
 	case appleNotesFolderName
+	case refinementEnabled
+	case refinementInstructions
+	case termReplacements
 }
 
 private struct SettingsField<Value: Codable & Sendable> {
@@ -305,6 +319,9 @@ private enum HexSettingsSchema {
 			encode: { container, key, value in
 				try container.encodeIfPresent(value, forKey: key)
 			}
-		).eraseToAny()
+		).eraseToAny(),
+		SettingsField(.refinementEnabled, keyPath: \.refinementEnabled, default: defaults.refinementEnabled).eraseToAny(),
+		SettingsField(.refinementInstructions, keyPath: \.refinementInstructions, default: defaults.refinementInstructions).eraseToAny(),
+		SettingsField(.termReplacements, keyPath: \.termReplacements, default: defaults.termReplacements).eraseToAny()
 	]
 }

@@ -29,13 +29,13 @@ struct IOSHistoryView: View {
                 transcript: transcript,
                 isPlaying: store.playingTranscriptID == transcript.id,
                 onPlay: { store.send(.playTranscript(transcript.id)) },
-                onCopy: { store.send(.copyToClipboard(transcript.text)) },
-                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.text)) },
-                onAppendToNote: { store.send(.appendToAppleNote(transcript.text)) }
+                onCopy: { store.send(.copyToClipboard(transcript.refinedText ?? transcript.text)) },
+                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text)) },
+                onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text)) }
               )
               .contentShape(Rectangle())
               .onTapGesture {
-                store.send(.openTranscript(transcript.text))
+                store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText))
               }
               .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
@@ -84,7 +84,7 @@ struct IOSTranscriptRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text(transcript.text)
+      Text(transcript.refinedText ?? transcript.text)
         .font(.body)
         .lineLimit(4)
 
@@ -95,6 +95,11 @@ struct IOSTranscriptRow: View {
         Text(transcript.timestamp.formatted(date: .omitted, time: .shortened))
         Text("·")
         Text(String(format: "%.1fs", transcript.duration))
+        if transcript.refinedText != nil {
+          Image(systemName: "sparkles")
+            .font(.caption2)
+            .foregroundStyle(.purple)
+        }
       }
       .font(.caption)
       .foregroundStyle(.secondary)

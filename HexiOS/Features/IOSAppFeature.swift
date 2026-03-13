@@ -74,9 +74,9 @@ struct IOSAppFeature {
         state.microphonePermission = granted ? .granted : .denied
         return .none
 
-      case .history(.openTranscript(let text)):
+      case .history(.openTranscript(let text, let refinedText)):
         state.activeTab = .record
-        return .send(.transcription(.openTranscript(text)))
+        return .send(.transcription(.openTranscriptWithRefinement(text, refinedText)))
 
       case .transcription, .settings, .history:
         return .none

@@ -8,6 +8,7 @@ struct TranscriptionResultView: View {
   @State private var showAppended = false
   @State private var editableText: String = ""
   @State private var selection: TextSelection?
+  @State private var refinementDisplayMode: RefinementDisplayMode = .original
 
   var body: some View {
     VStack(spacing: 0) {
@@ -42,6 +43,23 @@ struct TranscriptionResultView: View {
 
       Divider()
 
+      // Refinement toggle
+      if case .processing = store.refinementStatus {
+        RefinementToggle(
+          isProcessing: true,
+          isAvailable: false,
+          displayMode: $refinementDisplayMode
+        )
+        Divider()
+      } else if case .completed = store.refinementStatus {
+        RefinementToggle(
+          isProcessing: false,
+          isAvailable: true,
+          displayMode: $refinementDisplayMode
+        )
+        Divider()
+      }
+
       // Content
       if let error = store.transcriptionError {
         VStack(spacing: 12) {
@@ -54,39 +72,51 @@ struct TranscriptionResultView: View {
         }
         .padding()
       } else {
-        TextEditor(text: $editableText, selection: $selection)
-          .font(.body)
-          .padding(.horizontal, 12)
-          .padding(.vertical, 8)
+        if refinementDisplayMode == .refined, case .completed(let refinedText) = store.refinementStatus {
+          ScrollView {
+            Text(refinedText)
+              .font(.body)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.horizontal, 12)
+              .padding(.vertical, 8)
+              .textSelection(.enabled)
+          }
           .frame(minHeight: 100)
-          .onAppear {
-            editableText = store.lastTranscriptionResult ?? ""
-          }
-          .onChange(of: store.lastTranscriptionResult) { _, newValue in
-            editableText = newValue ?? ""
-          }
-          .onChange(of: store.pendingAppendText) { _, newValue in
-            if let newText = newValue, !newText.isEmpty {
-              let insertionIndex: String.Index
-              if let selection,
-                 case .selection(let range) = selection.indices {
-                insertionIndex = range.lowerBound
-              } else {
-                insertionIndex = editableText.endIndex
-              }
-
-              var prefix = ""
-              if insertionIndex > editableText.startIndex {
-                let charBefore = editableText[editableText.index(before: insertionIndex)]
-                if !charBefore.isWhitespace && !newText.hasPrefix(" ") {
-                  prefix = " "
-                }
-              }
-
-              editableText.insert(contentsOf: prefix + newText, at: insertionIndex)
-              store.send(.updateTranscriptionText(editableText))
+        } else {
+          TextEditor(text: $editableText, selection: $selection)
+            .font(.body)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 100)
+            .onAppear {
+              editableText = store.lastTranscriptionResult ?? ""
             }
-          }
+            .onChange(of: store.lastTranscriptionResult) { _, newValue in
+              editableText = newValue ?? ""
+            }
+            .onChange(of: store.pendingAppendText) { _, newValue in
+              if let newText = newValue, !newText.isEmpty {
+                let insertionIndex: String.Index
+                if let selection,
+                   case .selection(let range) = selection.indices {
+                  insertionIndex = range.lowerBound
+                } else {
+                  insertionIndex = editableText.endIndex
+                }
+
+                var prefix = ""
+                if insertionIndex > editableText.startIndex {
+                  let charBefore = editableText[editableText.index(before: insertionIndex)]
+                  if !charBefore.isWhitespace && !newText.hasPrefix(" ") {
+                    prefix = " "
+                  }
+                }
+
+                editableText.insert(contentsOf: prefix + newText, at: insertionIndex)
+                store.send(.updateTranscriptionText(editableText))
+              }
+            }
+        }
       }
 
       Divider()
@@ -100,7 +130,15 @@ struct TranscriptionResultView: View {
               icon: showCopied ? "checkmark" : "doc.on.doc",
               tint: showCopied ? .green : .primary
             ) {
-              store.send(.copyResult)
+              let textToCopy: String
+              if refinementDisplayMode == .refined, case .completed(let refined) = store.refinementStatus {
+                textToCopy = refined
+              } else {
+                textToCopy = editableText
+              }
+              UIPasteboard.general.string = textToCopy
+              let generator = UINotificationFeedbackGenerator()
+              generator.notificationOccurred(.success)
               withAnimation { showCopied = true }
               Task {
                 try? await Task.sleep(for: .seconds(1.5))
@@ -109,7 +147,12 @@ struct TranscriptionResultView: View {
             }
 
             if let text = store.lastTranscriptionResult, !text.isEmpty {
-              ShareLink(item: text) {
+              ShareLink(item: {
+                if refinementDisplayMode == .refined, case .completed(let refined) = store.refinementStatus {
+                  return refined
+                }
+                return editableText.isEmpty ? text : editableText
+              }()) {
                 actionLabel(label: "Share", icon: "square.and.arrow.up")
                   .foregroundStyle(.primary)
               }
@@ -157,6 +200,14 @@ struct TranscriptionResultView: View {
     .shadow(radius: 20, y: 10)
     .padding()
     .transition(.move(edge: .bottom).combined(with: .opacity))
+    .onChange(of: store.refinementStatus) { _, newStatus in
+      if case .completed = newStatus {
+        withAnimation { refinementDisplayMode = .refined }
+      }
+    }
+    .onChange(of: store.lastTranscriptionResult) { _, _ in
+      refinementDisplayMode = .original
+    }
   }
 
   private func actionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {

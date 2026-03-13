@@ -109,7 +109,7 @@ struct HistoryFeature {
     case confirmDeleteAll
     case playbackFinished
     case navigateToSettings
-    case openTranscript(String)
+    case openTranscript(text: String, refinedText: String?)
   }
 
   @Dependency(\.pasteboard) var pasteboard
