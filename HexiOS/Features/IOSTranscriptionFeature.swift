@@ -20,6 +20,7 @@ struct IOSTranscriptionFeature {
     var isPrewarming = false
     var meter = Meter(averagePower: 0, peakPower: 0)
     var lastTranscriptionResult: String?
+    var currentTranscriptID: UUID?
     var transcriptionError: String?
     var recordingStartTime: Date?
 
@@ -27,6 +28,20 @@ struct IOSTranscriptionFeature {
     var isAppendRecording = false
     var isAppendTranscribing = false
     var pendingAppendText: String?
+
+    // AI refinement state
+    enum RefinementStatus: Equatable {
+      case idle
+      case processing
+      case completed(String)
+      case failed
+
+      var isProcessing: Bool {
+        if case .processing = self { return true }
+        return false
+      }
+    }
+    var refinementStatus: RefinementStatus = .idle
   }
 
   enum Action {
@@ -39,10 +54,11 @@ struct IOSTranscriptionFeature {
     case transcriptionFailed(String)
     case copyResult
     case shareResult
-    case saveToAppleNotes
-    case appendToAppleNote
+    case saveToAppleNotes(String)
+    case appendToAppleNote(String)
     case clearResult
     case openTranscript(String)
+    case openTranscriptWithRefinement(String, String?)
     case prewarmCompleted
 
     // Append recording actions
@@ -52,6 +68,12 @@ struct IOSTranscriptionFeature {
     case appendTranscriptionResult(String)
     case appendTranscriptionFailed
     case updateTranscriptionText(String)
+    case updateRefinedText(String)
+
+    // AI refinement actions
+    case retriggerRefinement
+    case refinementCompleted(String)
+    case refinementFailed
   }
 
   @Dependency(\.recording) var recording
@@ -62,6 +84,7 @@ struct IOSTranscriptionFeature {
   @Dependency(\.transcriptPersistence) var transcriptPersistence
   @Dependency(\.pasteboard) var pasteboard
   @Dependency(\.appleNotes) var appleNotes
+  @Dependency(\.refinement) var refinement
 
   private static let datePrefixFormatter: DateFormatter = {
     let formatter = DateFormatter()
@@ -72,6 +95,7 @@ struct IOSTranscriptionFeature {
 
   enum CancelID {
     case metering
+    case refinement
   }
 
   var body: some ReducerOf<Self> {
@@ -95,6 +119,7 @@ struct IOSTranscriptionFeature {
         state.isRecording = true
         state.lastTranscriptionResult = nil
         state.transcriptionError = nil
+        state.refinementStatus = .idle
         state.recordingStartTime = date.now
         soundEffects.play(.startRecording)
 
@@ -206,7 +231,25 @@ struct IOSTranscriptionFeature {
       case .transcriptionResult(let text, _):
         state.isTranscribing = false
         state.lastTranscriptionResult = text
+        state.currentTranscriptID = state.transcriptionHistory.history.first(where: { $0.text == text })?.id
         soundEffects.play(.pasteTranscript)
+        // Trigger AI refinement
+        if state.hexSettings.refinementEnabled && refinement.isAvailable() {
+          state.refinementStatus = .processing
+          let instructions = state.hexSettings.refinementInstructions
+          let replacements = state.hexSettings.termReplacements
+          return .run { send in
+            let refined = try await refinement.refine(text, instructions, replacements)
+            guard !refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+              await send(.refinementFailed)
+              return
+            }
+            await send(.refinementCompleted(refined))
+          } catch: { _, send in
+            await send(.refinementFailed)
+          }
+          .cancellable(id: CancelID.refinement)
+        }
         return .none
 
       case .transcriptionFailed(let error):
@@ -225,8 +268,16 @@ struct IOSTranscriptionFeature {
       case .shareResult:
         return .none
 
-      case .saveToAppleNotes:
-        guard let text = state.lastTranscriptionResult else { return .none }
+      case .saveToAppleNotes(let text):
+        guard !text.isEmpty else { return .none }
+        // Mark transcript as saved to notes
+        if let id = state.currentTranscriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == id }) {
+              history.history[index].savedToNotes = true
+            }
+          }
+        }
         let folderName = state.hexSettings.appleNotesFolderName
         return .run { [appleNotes] _ in
           try? await appleNotes.saveNote(text, folderName)
@@ -234,8 +285,16 @@ struct IOSTranscriptionFeature {
           await haptic.notificationOccurred(.success)
         }
 
-      case .appendToAppleNote:
-        guard let text = state.lastTranscriptionResult else { return .none }
+      case .appendToAppleNote(let text):
+        guard !text.isEmpty else { return .none }
+        // Mark transcript as saved to notes
+        if let id = state.currentTranscriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == id }) {
+              history.history[index].savedToNotes = true
+            }
+          }
+        }
         return .run { [appleNotes] _ in
           try? await appleNotes.appendToNote(text)
           let haptic = await UINotificationFeedbackGenerator()
@@ -244,25 +303,40 @@ struct IOSTranscriptionFeature {
 
       case .openTranscript(let text):
         state.lastTranscriptionResult = text
+        state.currentTranscriptID = state.transcriptionHistory.history.first(where: { $0.text == text })?.id
         state.transcriptionError = nil
+        return .none
+
+      case .openTranscriptWithRefinement(let text, let refinedText):
+        state.lastTranscriptionResult = text
+        state.currentTranscriptID = state.transcriptionHistory.history.first(where: { $0.text == text })?.id
+        state.transcriptionError = nil
+        if let refinedText {
+          state.refinementStatus = .completed(refinedText)
+        } else {
+          state.refinementStatus = .idle
+        }
         return .none
 
       case .clearResult:
         let wasAppendRecording = state.isAppendRecording
         state.lastTranscriptionResult = nil
+        state.currentTranscriptID = nil
         state.transcriptionError = nil
         state.pendingAppendText = nil
+        state.refinementStatus = .idle
         state.isAppendTranscribing = false
         state.isAppendRecording = false
         if wasAppendRecording {
           return .merge(
             .cancel(id: CancelID.metering),
+            .cancel(id: CancelID.refinement),
             .run { _ in
               _ = await recording.stopRecording()
             }
           )
         }
-        return .none
+        return .cancel(id: CancelID.refinement)
 
       // MARK: - Append Recording
 
@@ -363,6 +437,63 @@ struct IOSTranscriptionFeature {
       case .updateTranscriptionText(let text):
         state.lastTranscriptionResult = text
         state.pendingAppendText = nil
+        // Sync edit to history
+        if let id = state.currentTranscriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == id }) {
+              history.history[index].text = text
+            }
+          }
+        }
+        return .none
+
+      case .updateRefinedText(let text):
+        state.refinementStatus = .completed(text)
+        // Sync edited refined text to history
+        if let id = state.currentTranscriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == id }) {
+              history.history[index].refinedText = text
+            }
+          }
+        }
+        return .none
+
+      // MARK: - AI Refinement
+
+      case .retriggerRefinement:
+        guard let text = state.lastTranscriptionResult,
+              state.hexSettings.refinementEnabled,
+              refinement.isAvailable() else { return .none }
+        state.refinementStatus = .processing
+        let instructions = state.hexSettings.refinementInstructions
+        let replacements = state.hexSettings.termReplacements
+        return .run { send in
+          let refined = try await refinement.refine(text, instructions, replacements)
+          guard !refined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            await send(.refinementFailed)
+            return
+          }
+          await send(.refinementCompleted(refined))
+        } catch: { _, send in
+          await send(.refinementFailed)
+        }
+        .cancellable(id: CancelID.refinement)
+
+      case .refinementCompleted(let refined):
+        state.refinementStatus = .completed(refined)
+        // Update the history entry with refined text
+        if let id = state.currentTranscriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == id }) {
+              history.history[index].refinedText = refined
+            }
+          }
+        }
+        return .none
+
+      case .refinementFailed:
+        state.refinementStatus = .failed
         return .none
       }
     }

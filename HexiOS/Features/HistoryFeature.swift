@@ -102,14 +102,13 @@ struct HistoryFeature {
     case playTranscript(UUID)
     case stopPlayback
     case copyToClipboard(String)
-    case saveToAppleNotes(String)
-    case appendToAppleNote(String)
+    case saveToAppleNotes(String, transcriptID: UUID?)
+    case appendToAppleNote(String, transcriptID: UUID?)
     case deleteTranscript(UUID)
-    case deleteAllTranscripts
-    case confirmDeleteAll
+    case deleteSelected(Set<UUID>)
     case playbackFinished
     case navigateToSettings
-    case openTranscript(String)
+    case openTranscript(text: String, refinedText: String?)
   }
 
   @Dependency(\.pasteboard) var pasteboard
@@ -130,9 +129,33 @@ struct HistoryFeature {
           return .none
         }
 
+        // On iOS the container UUID changes between launches, so stored absolute paths
+        // may be stale. Resolve by reconstructing from the filename.
+        let audioURL: URL
+        if FileManager.default.fileExists(atPath: transcript.audioPath.path) {
+          audioURL = transcript.audioPath
+        } else {
+          let filename = transcript.audioPath.lastPathComponent
+          if let supportDir = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: false
+          ) {
+            let resolved = supportDir
+              .appendingPathComponent("com.kitlangton.Hex", isDirectory: true)
+              .appendingPathComponent("Recordings", isDirectory: true)
+              .appendingPathComponent(filename)
+            audioURL = resolved
+          } else {
+            historyLogger.error("Cannot resolve audio path for transcript \(id)")
+            return .none
+          }
+        }
+
         do {
           let controller = AudioPlayerController()
-          let player = try controller.play(url: transcript.audioPath)
+          let player = try controller.play(url: audioURL)
           state.audioPlayer = player
           state.audioPlayerController = controller
           state.playingTranscriptID = id
@@ -161,13 +184,27 @@ struct HistoryFeature {
           await pasteboard.copy(text)
         }
 
-      case let .saveToAppleNotes(text):
+      case let .saveToAppleNotes(text, transcriptID):
+        if let transcriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == transcriptID }) {
+              history.history[index].savedToNotes = true
+            }
+          }
+        }
         let folderName = state.hexSettings.appleNotesFolderName
         return .run { [appleNotes] _ in
           try? await appleNotes.saveNote(text, folderName)
         }
 
-      case let .appendToAppleNote(text):
+      case let .appendToAppleNote(text, transcriptID):
+        if let transcriptID {
+          state.$transcriptionHistory.withLock { history in
+            if let index = history.history.firstIndex(where: { $0.id == transcriptID }) {
+              history.history[index].savedToNotes = true
+            }
+          }
+        }
         return .run { [appleNotes] _ in
           try? await appleNotes.appendToNote(text)
         }
@@ -187,17 +224,16 @@ struct HistoryFeature {
           try? FileManager.default.removeItem(at: transcript.audioPath)
         }
 
-      case .deleteAllTranscripts:
-        return .send(.confirmDeleteAll)
-
-      case .confirmDeleteAll:
-        let transcripts = state.transcriptionHistory.history
-        state.stopAudioPlayback()
+      case let .deleteSelected(ids):
+        let toDelete = state.transcriptionHistory.history.filter { ids.contains($0.id) }
+        if let playingID = state.playingTranscriptID, ids.contains(playingID) {
+          state.stopAudioPlayback()
+        }
         state.$transcriptionHistory.withLock { history in
-          history.history.removeAll()
+          history.history.removeAll { ids.contains($0.id) }
         }
         return .run { _ in
-          for transcript in transcripts {
+          for transcript in toDelete {
             try? FileManager.default.removeItem(at: transcript.audioPath)
           }
         }
