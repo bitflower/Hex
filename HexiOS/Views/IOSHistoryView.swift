@@ -4,8 +4,10 @@ import SwiftUI
 
 struct IOSHistoryView: View {
   let store: StoreOf<HistoryFeature>
-  @State private var showingDeleteConfirmation = false
   @Shared(.hexSettings) var hexSettings: HexSettings
+  @State private var isSelecting = false
+  @State private var selectedIDs: Set<UUID> = []
+  @State private var showingDeleteConfirmation = false
 
   var body: some View {
     NavigationStack {
@@ -23,46 +25,117 @@ struct IOSHistoryView: View {
             Text("Your transcription history will appear here.")
           }
         } else {
-          List {
-            ForEach(store.transcriptionHistory.history) { transcript in
-              IOSTranscriptRow(
-                transcript: transcript,
-                isPlaying: store.playingTranscriptID == transcript.id,
-                onTap: { store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText)) },
-                onPlay: { store.send(.playTranscript(transcript.id)) },
-                onCopy: { store.send(.copyToClipboard(transcript.refinedText ?? transcript.text)) },
-                onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) },
-                onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) }
-              )
-              .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
-                  store.send(.deleteTranscript(transcript.id))
-                } label: {
-                  Label("Delete", systemImage: "trash")
+          VStack(spacing: 0) {
+            List {
+              ForEach(store.transcriptionHistory.history) { transcript in
+                if isSelecting {
+                  HStack(spacing: 12) {
+                    Image(systemName: selectedIDs.contains(transcript.id) ? "checkmark.circle.fill" : "circle")
+                      .foregroundStyle(selectedIDs.contains(transcript.id) ? .blue : .secondary)
+                      .font(.title3)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                      Text(transcript.refinedText ?? transcript.text)
+                        .font(.body)
+                        .lineLimit(3)
+
+                      HStack(spacing: 6) {
+                        Text(transcript.timestamp.relativeFormatted())
+                        Text("·")
+                        Text(transcript.timestamp.formatted(date: .omitted, time: .shortened))
+                        if transcript.refinedText != nil {
+                          Image(systemName: "sparkles")
+                            .foregroundStyle(.purple)
+                        }
+                        if transcript.savedToNotes == true {
+                          Image(systemName: "note.text")
+                            .foregroundStyle(.orange)
+                        }
+                      }
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                    }
+                  }
+                  .contentShape(Rectangle())
+                  .onTapGesture {
+                    if selectedIDs.contains(transcript.id) {
+                      selectedIDs.remove(transcript.id)
+                    } else {
+                      selectedIDs.insert(transcript.id)
+                    }
+                  }
+                } else {
+                  IOSTranscriptRow(
+                    transcript: transcript,
+                    isPlaying: store.playingTranscriptID == transcript.id,
+                    onTap: { store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText)) },
+                    onPlay: { store.send(.playTranscript(transcript.id)) },
+                    onCopy: { store.send(.copyToClipboard(transcript.refinedText ?? transcript.text)) },
+                    onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) },
+                    onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) }
+                  )
+                  .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                      store.send(.deleteTranscript(transcript.id))
+                    } label: {
+                      Label("Delete", systemImage: "trash")
+                    }
+                  }
                 }
               }
             }
+            .listStyle(.plain)
+
+            if isSelecting {
+              HStack {
+                Button {
+                  if selectedIDs.count == store.transcriptionHistory.history.count {
+                    selectedIDs.removeAll()
+                  } else {
+                    selectedIDs = Set(store.transcriptionHistory.history.map(\.id))
+                  }
+                } label: {
+                  Text(selectedIDs.count == store.transcriptionHistory.history.count ? "Deselect All" : "Select All")
+                }
+
+                Spacer()
+
+                Button(role: .destructive) {
+                  showingDeleteConfirmation = true
+                } label: {
+                  Text("Delete (\(selectedIDs.count))")
+                }
+                .disabled(selectedIDs.isEmpty)
+              }
+              .padding(.horizontal)
+              .padding(.vertical, 10)
+              .background(.bar)
+            }
           }
-          .listStyle(.plain)
         }
       }
       .navigationTitle("History")
       .toolbar {
         if !store.transcriptionHistory.history.isEmpty {
-          Button(role: .destructive) {
-            showingDeleteConfirmation = true
+          Button {
+            withAnimation {
+              isSelecting.toggle()
+              if !isSelecting { selectedIDs.removeAll() }
+            }
           } label: {
-            Label("Delete All", systemImage: "trash")
+            Text(isSelecting ? "Done" : "Select")
           }
         }
       }
-      .alert("Delete All Transcripts", isPresented: $showingDeleteConfirmation) {
-        Button("Delete All", role: .destructive) {
-          store.send(.confirmDeleteAll)
+      .alert("Delete Selected", isPresented: $showingDeleteConfirmation) {
+        Button("Delete \(selectedIDs.count) Item\(selectedIDs.count == 1 ? "" : "s")", role: .destructive) {
+          store.send(.deleteSelected(selectedIDs))
+          selectedIDs.removeAll()
+          withAnimation { isSelecting = false }
         }
         Button("Cancel", role: .cancel) {}
       } message: {
-        Text("Are you sure you want to delete all transcripts? This action cannot be undone.")
+        Text("Are you sure you want to delete \(selectedIDs.count) transcript\(selectedIDs.count == 1 ? "" : "s")? This cannot be undone.")
       }
     }
   }

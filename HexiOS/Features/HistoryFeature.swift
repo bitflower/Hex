@@ -105,8 +105,7 @@ struct HistoryFeature {
     case saveToAppleNotes(String, transcriptID: UUID?)
     case appendToAppleNote(String, transcriptID: UUID?)
     case deleteTranscript(UUID)
-    case deleteAllTranscripts
-    case confirmDeleteAll
+    case deleteSelected(Set<UUID>)
     case playbackFinished
     case navigateToSettings
     case openTranscript(text: String, refinedText: String?)
@@ -225,17 +224,16 @@ struct HistoryFeature {
           try? FileManager.default.removeItem(at: transcript.audioPath)
         }
 
-      case .deleteAllTranscripts:
-        return .send(.confirmDeleteAll)
-
-      case .confirmDeleteAll:
-        let transcripts = state.transcriptionHistory.history
-        state.stopAudioPlayback()
+      case let .deleteSelected(ids):
+        let toDelete = state.transcriptionHistory.history.filter { ids.contains($0.id) }
+        if let playingID = state.playingTranscriptID, ids.contains(playingID) {
+          state.stopAudioPlayback()
+        }
         state.$transcriptionHistory.withLock { history in
-          history.history.removeAll()
+          history.history.removeAll { ids.contains($0.id) }
         }
         return .run { _ in
-          for transcript in transcripts {
+          for transcript in toDelete {
             try? FileManager.default.removeItem(at: transcript.audioPath)
           }
         }
