@@ -29,16 +29,16 @@ extension SoundEffectsClient: DependencyKey {
     let live = SoundEffectsClientLive()
     return SoundEffectsClient(
       play: { soundEffect in
-        Task { await live.play(soundEffect) }
+        live.play(soundEffect)
       },
       stop: { soundEffect in
-        Task { await live.stop(soundEffect) }
+        live.stop(soundEffect)
       },
       stopAll: {
-        Task { await live.stopAll() }
+        live.stopAll()
       },
       preloadSounds: {
-        await live.preloadSounds()
+        live.preloadSounds()
       }
     )
   }
@@ -51,7 +51,9 @@ public extension DependencyValues {
   }
 }
 
-actor SoundEffectsClientLive {
+// Use @unchecked Sendable with a lock instead of actor to avoid async scheduling delays
+final class SoundEffectsClientLive: @unchecked Sendable {
+  private let lock = NSLock()
   private let logger = HexLog.sound
   private let baselineVolume = HexSettings.baseSoundEffectsVolume
 
@@ -62,6 +64,8 @@ actor SoundEffectsClientLive {
   private var isEngineRunning = false
 
   func play(_ soundEffect: SoundEffect) {
+    lock.lock()
+    defer { lock.unlock() }
     guard hexSettings.soundEffectsEnabled else { return }
     guard let player = playerNodes[soundEffect], let buffer = audioBuffers[soundEffect] else {
       logger.error("Requested sound \(soundEffect.rawValue) not preloaded")
@@ -76,14 +80,20 @@ actor SoundEffectsClientLive {
   }
 
   func stop(_ soundEffect: SoundEffect) {
+    lock.lock()
+    defer { lock.unlock() }
     playerNodes[soundEffect]?.stop()
   }
 
   func stopAll() {
+    lock.lock()
+    defer { lock.unlock() }
     playerNodes.values.forEach { $0.stop() }
   }
 
-  func preloadSounds() async {
+  func preloadSounds() {
+    lock.lock()
+    defer { lock.unlock() }
     guard !isSetup else { return }
 
     // Configure audio session for playback alongside recording
