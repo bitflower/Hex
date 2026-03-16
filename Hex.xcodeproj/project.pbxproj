@@ -26,6 +26,8 @@
 		AA0000012E6B000000000016 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012E6B000000000010 /* FluidAudio */; };
 		B5045C972D78DED500D0A119 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = B5045C962D78DED500D0A119 /* MarkdownUI */; };
 		B53356002D7B8D4900E5F542 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B53355FF2D7B8D4900E5F542 /* Localizable.xcstrings */; };
+		CC0000012E7C000000000020 /* RecordingIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000012E7C00000000001F /* RecordingIntent.swift */; };
+		CC0000012E7C000000000021 /* RecordingIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000012E7C00000000001F /* RecordingIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +70,7 @@
 		B53355FF2D7B8D4900E5F542 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B5A1C7E22E6A1C5B00AB1234 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.icon; name = AppIcon.icon; path = Hex/AppIcon.icon; sourceTree = "<group>"; };
 		CC0000012E7C000000000001 /* ThoughtFlowControl.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ThoughtFlowControl.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000012E7C00000000001F /* RecordingIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -187,6 +190,7 @@
 				47E05DF02D444EC600D26DA6 /* Hex */,
 				AA0000012E6B000000000009 /* HexiOS */,
 				CC0000012E7C000000000002 /* ThoughtFlowControl */,
+				CC0000012E7C000000000022 /* Shared */,
 				4735444F2D445936001FBCB5 /* Frameworks */,
 				47E05DEF2D444EC600D26DA6 /* Products */,
 			);
@@ -201,6 +205,14 @@
 				CC0000012E7C000000000001 /* ThoughtFlowControl.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CC0000012E7C000000000022 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				CC0000012E7C00000000001F /* RecordingIntent.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -415,6 +427,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC0000012E7C000000000020 /* RecordingIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -422,6 +435,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC0000012E7C000000000021 /* RecordingIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
