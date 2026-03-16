@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CC0000012E7C00000000000D /* ThoughtFlowControl.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = CC0000012E7C000000000001 /* ThoughtFlowControl.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47512ABF2E14D8C9000E25BA /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 47512ABE2E14D8C9000E25BA /* WhisperKit */; };
 		476316272E5FB31400913CDE /* HexCore in Frameworks */ = {isa = PBXBuildFile; productRef = 476316262E5FB31400913CDE /* HexCore */; };
 		4765045E2D45900200C7EA60 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 4765045D2D45900200C7EA60 /* Pow */; };
@@ -35,7 +36,28 @@
 			remoteGlobalIDString = 47E05DED2D444EC600D26DA6;
 			remoteInfo = Hex;
 		};
+		CC0000012E7C00000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47E05DE62D444EC600D26DA6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC0000012E7C000000000006;
+			remoteInfo = ThoughtFlowControl;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CC0000012E7C00000000000C /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CC0000012E7C00000000000D /* ThoughtFlowControl.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		473544502D445936001FBCB5 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
@@ -45,6 +67,7 @@
 		AA0000012E6B000000000002 /* HexiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HexiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B53355FF2D7B8D4900E5F542 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B5A1C7E22E6A1C5B00AB1234 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.icon; name = AppIcon.icon; path = Hex/AppIcon.icon; sourceTree = "<group>"; };
+		CC0000012E7C000000000001 /* ThoughtFlowControl.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ThoughtFlowControl.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -61,6 +84,13 @@
 				Info.plist,
 			);
 			target = AA0000012E6B000000000001 /* HexiOS */;
+		};
+		CC0000012E7C00000000000E /* Exceptions for "ThoughtFlowControl" folder in "ThoughtFlowControl" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CC0000012E7C000000000006 /* ThoughtFlowControl */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -79,6 +109,14 @@
 				AA0000012E6B00000000000A /* Exceptions for "HexiOS" folder in "HexiOS" target */,
 			);
 			path = HexiOS;
+			sourceTree = "<group>";
+		};
+		CC0000012E7C000000000002 /* ThoughtFlowControl */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CC0000012E7C00000000000E /* Exceptions for "ThoughtFlowControl" folder in "ThoughtFlowControl" target */,
+			);
+			path = ThoughtFlowControl;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -122,6 +160,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC0000012E7C000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -141,6 +186,7 @@
 				B5A1C7E22E6A1C5B00AB1234 /* AppIcon.icon */,
 				47E05DF02D444EC600D26DA6 /* Hex */,
 				AA0000012E6B000000000009 /* HexiOS */,
+				CC0000012E7C000000000002 /* ThoughtFlowControl */,
 				4735444F2D445936001FBCB5 /* Frameworks */,
 				47E05DEF2D444EC600D26DA6 /* Products */,
 			);
@@ -152,6 +198,7 @@
 				47E05DEE2D444EC600D26DA6 /* Hex Debug.app */,
 				478637A52D48725900319BFA /* HexTests.xctest */,
 				AA0000012E6B000000000002 /* HexiOS.app */,
+				CC0000012E7C000000000001 /* ThoughtFlowControl.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -219,10 +266,12 @@
 				AA0000012E6B000000000003 /* Sources */,
 				AA0000012E6B000000000004 /* Frameworks */,
 				AA0000012E6B000000000005 /* Resources */,
+				CC0000012E7C00000000000C /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CC0000012E7C00000000000B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA0000012E6B000000000009 /* HexiOS */,
@@ -239,6 +288,28 @@
 			productName = HexiOS;
 			productReference = AA0000012E6B000000000002 /* HexiOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		CC0000012E7C000000000006 /* ThoughtFlowControl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000012E7C000000000009 /* Build configuration list for PBXNativeTarget "ThoughtFlowControl" */;
+			buildPhases = (
+				CC0000012E7C000000000004 /* Sources */,
+				CC0000012E7C000000000003 /* Frameworks */,
+				CC0000012E7C000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CC0000012E7C000000000002 /* ThoughtFlowControl */,
+			);
+			name = ThoughtFlowControl;
+			packageProductDependencies = (
+			);
+			productName = ThoughtFlowControl;
+			productReference = CC0000012E7C000000000001 /* ThoughtFlowControl.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -288,6 +359,7 @@
 				47E05DED2D444EC600D26DA6 /* Hex */,
 				478637A42D48725900319BFA /* HexTests */,
 				AA0000012E6B000000000001 /* HexiOS */,
+				CC0000012E7C000000000006 /* ThoughtFlowControl */,
 			);
 		};
 /* End PBXProject section */
@@ -309,6 +381,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AA0000012E6B000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC0000012E7C000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -339,6 +418,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC0000012E7C000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -346,6 +432,11 @@
 			isa = PBXTargetDependency;
 			target = 47E05DED2D444EC600D26DA6 /* Hex */;
 			targetProxy = 478637A92D48725900319BFA /* PBXContainerItemProxy */;
+		};
+		CC0000012E7C00000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC0000012E7C000000000006 /* ThoughtFlowControl */;
+			targetProxy = CC0000012E7C00000000000A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -683,6 +774,60 @@
 			};
 			name = Release;
 		};
+		CC0000012E7C000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZWJVCL53ES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ThoughtFlowControl/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ThoughtFlowControl;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kitlangton.Hex.iOS.ThoughtFlowControl;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CC0000012E7C000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZWJVCL53ES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ThoughtFlowControl/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ThoughtFlowControl;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kitlangton.Hex.iOS.ThoughtFlowControl;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -718,6 +863,15 @@
 			buildConfigurations = (
 				AA0000012E6B000000000007 /* Debug */,
 				AA0000012E6B000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000012E7C000000000009 /* Build configuration list for PBXNativeTarget "ThoughtFlowControl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000012E7C000000000007 /* Debug */,
+				CC0000012E7C000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

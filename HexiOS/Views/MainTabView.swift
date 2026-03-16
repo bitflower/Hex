@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MainTabView: View {
   @Bindable var store: StoreOf<IOSAppFeature>
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     ZStack {
@@ -37,5 +38,10 @@ struct MainTabView: View {
       }
     }
     .task { store.send(.task) }
+    .onChange(of: scenePhase) { _, newPhase in
+      if newPhase == .active, RecordingIntentFlag.consumeIfSet() {
+        store.send(.startRecordingFromIntent)
+      }
+    }
   }
 }

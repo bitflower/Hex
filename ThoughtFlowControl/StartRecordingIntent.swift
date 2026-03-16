@@ -17,6 +17,8 @@ enum RecordingIntentFlag {
 
 /// App Intent that opens ThoughtFlow and immediately starts recording.
 /// Available via Siri, Action Button, Spotlight, Control Center, and Lock Screen.
+///
+/// This file must have target membership in BOTH the main app and the widget extension.
 @available(iOS 16.0, *)
 struct StartRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Record with ThoughtFlow"
