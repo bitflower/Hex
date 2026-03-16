@@ -85,6 +85,7 @@ struct IOSTranscriptionFeature {
   @Dependency(\.pasteboard) var pasteboard
   @Dependency(\.appleNotes) var appleNotes
   @Dependency(\.refinement) var refinement
+  @Dependency(\.sleepManagement) var sleepManagement
 
   private static let datePrefixFormatter: DateFormatter = {
     let formatter = DateFormatter()
@@ -121,11 +122,12 @@ struct IOSTranscriptionFeature {
         state.transcriptionError = nil
         state.refinementStatus = .idle
         state.recordingStartTime = date.now
-        soundEffects.play(.startRecording)
 
         return .merge(
-          .run { _ in
+          .run { [sleepManagement, soundEffects] _ in
+            await sleepManagement.preventSleep("Voice Recording")
             await recording.startRecording()
+            soundEffects.play(.startRecording)
           },
           .run { send in
             let haptic = await UIImpactFeedbackGenerator(style: .medium)
@@ -155,7 +157,8 @@ struct IOSTranscriptionFeature {
 
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { send in
+          .run { [sleepManagement] send in
+            await sleepManagement.allowSleep()
             let haptic = await UIImpactFeedbackGenerator(style: .light)
             await haptic.impactOccurred()
 
@@ -217,7 +220,8 @@ struct IOSTranscriptionFeature {
         soundEffects.play(.cancel)
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { _ in
+          .run { [sleepManagement] _ in
+            await sleepManagement.allowSleep()
             _ = await recording.stopRecording()
             let haptic = await UINotificationFeedbackGenerator()
             await haptic.notificationOccurred(.warning)
@@ -345,11 +349,12 @@ struct IOSTranscriptionFeature {
               !state.isAppendRecording, !state.isAppendTranscribing else { return .none }
         state.isAppendRecording = true
         state.recordingStartTime = date.now
-        soundEffects.play(.startRecording)
 
         return .merge(
-          .run { _ in
+          .run { [sleepManagement, soundEffects] _ in
+            await sleepManagement.preventSleep("Voice Recording")
             await recording.startRecording()
+            soundEffects.play(.startRecording)
           },
           .run { send in
             let haptic = await UIImpactFeedbackGenerator(style: .medium)
@@ -375,7 +380,8 @@ struct IOSTranscriptionFeature {
 
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { send in
+          .run { [sleepManagement] send in
+            await sleepManagement.allowSleep()
             let haptic = await UIImpactFeedbackGenerator(style: .light)
             await haptic.impactOccurred()
 
@@ -411,7 +417,8 @@ struct IOSTranscriptionFeature {
         soundEffects.play(.cancel)
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { _ in
+          .run { [sleepManagement] _ in
+            await sleepManagement.allowSleep()
             _ = await recording.stopRecording()
             let haptic = await UINotificationFeedbackGenerator()
             await haptic.notificationOccurred(.warning)

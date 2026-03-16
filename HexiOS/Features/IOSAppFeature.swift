@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import HexCore
 
 @Reducer
@@ -29,6 +30,7 @@ struct IOSAppFeature {
     case microphoneStatusUpdated(PermissionStatus)
     case requestMicrophone
     case microphoneRequestResult(Bool)
+    case startRecordingFromIntent
   }
 
   @Dependency(\.permissions) var permissions
@@ -47,9 +49,17 @@ struct IOSAppFeature {
     Reduce { state, action in
       switch action {
       case .task:
-        return .run { send in
-          await send(.checkPermissions)
-        }
+        return .merge(
+          .run { send in
+            await send(.checkPermissions)
+          },
+          .run { send in
+            // Listen for recording intent from lock screen / Siri / Action Button
+            for await _ in NotificationCenter.default.notifications(named: .startRecordingFromIntent) {
+              await send(.startRecordingFromIntent)
+            }
+          }
+        )
 
       case .tabChanged(let tab):
         state.activeTab = tab
@@ -74,6 +84,14 @@ struct IOSAppFeature {
       case .microphoneRequestResult(let granted):
         state.microphonePermission = granted ? .granted : .denied
         return .none
+
+      case .startRecordingFromIntent:
+        state.activeTab = .record
+        guard state.microphonePermission == .granted,
+              state.transcription.modelBootstrapState.isModelReady,
+              !state.transcription.isRecording,
+              !state.transcription.isTranscribing else { return .none }
+        return .send(.transcription(.startRecording))
 
       case .history(.openTranscript(let text, let refinedText)):
         state.tabBeforeTranscriptOpen = state.activeTab

@@ -74,7 +74,7 @@ struct RecordingView: View {
           .foregroundStyle(.red)
           .font(.headline)
       } else {
-        Text("Hold to record")
+        Text("Tap to record")
           .foregroundStyle(.secondary)
       }
     }
@@ -105,25 +105,21 @@ struct RecordingView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: store.isRecording)
         .shadow(color: (store.isRecording ? Color.red : Color.accentColor).opacity(0.3), radius: 12)
 
-      Image(systemName: "mic.fill")
+      Image(systemName: store.isRecording ? "stop.fill" : "mic.fill")
         .font(.system(size: 40))
         .foregroundStyle(.white)
+        .contentTransition(.symbolEffect(.replace))
     }
     .opacity(isEnabled ? 1.0 : 0.4)
-    .gesture(
-      DragGesture(minimumDistance: 0)
-        .onChanged { _ in
-          if !store.isRecording && isEnabled {
-            store.send(.startRecording)
-          }
-        }
-        .onEnded { _ in
-          if store.isRecording {
-            store.send(.stopRecording)
-          }
-        }
-    )
-    .accessibilityLabel(store.isRecording ? "Stop recording" : "Hold to record")
+    .onTapGesture {
+      guard isEnabled else { return }
+      if store.isRecording {
+        store.send(.stopRecording)
+      } else {
+        store.send(.startRecording)
+      }
+    }
+    .accessibilityLabel(store.isRecording ? "Stop recording" : "Tap to record")
     .accessibilityAddTraits(.isButton)
   }
 
