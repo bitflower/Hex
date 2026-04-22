@@ -231,6 +231,16 @@ struct IOSTranscriptRow: View {
         ) {
           onPlay()
         }
+
+        TranscriptShareMenu(
+          text: transcript.refinedText ?? transcript.text,
+          audioURL: transcript.resolvedAudioURL(),
+          previewTitle: transcript.sharePreviewTitle,
+          audioFilenameBase: transcript.audioExportFilenameBase
+        ) {
+          historyActionLabel(label: "Share", icon: "square.and.arrow.up")
+        }
+        .foregroundStyle(.primary)
       }
     }
     .padding(.vertical, 4)
@@ -238,17 +248,21 @@ struct IOSTranscriptRow: View {
 
   private func historyActionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      VStack(spacing: 4) {
-        Image(systemName: icon)
-          .font(.body)
-          .frame(height: 20)
-        Text(label)
-          .font(.caption2)
-          .lineLimit(1)
-      }
-      .frame(minWidth: 48)
+      historyActionLabel(label: label, icon: icon)
     }
     .buttonStyle(.borderless)
     .foregroundStyle(tint)
+  }
+
+  private func historyActionLabel(label: String, icon: String) -> some View {
+    VStack(spacing: 4) {
+      Image(systemName: icon)
+        .font(.body)
+        .frame(height: 20)
+      Text(label)
+        .font(.caption2)
+        .lineLimit(1)
+    }
+    .frame(minWidth: 48)
   }
 }

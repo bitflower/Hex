@@ -129,28 +129,11 @@ struct HistoryFeature {
           return .none
         }
 
-        // On iOS the container UUID changes between launches, so stored absolute paths
-        // may be stale. Resolve by reconstructing from the filename.
-        let audioURL: URL
-        if FileManager.default.fileExists(atPath: transcript.audioPath.path) {
-          audioURL = transcript.audioPath
-        } else {
-          let filename = transcript.audioPath.lastPathComponent
-          if let supportDir = try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: false
-          ) {
-            let resolved = supportDir
-              .appendingPathComponent("com.kitlangton.Hex", isDirectory: true)
-              .appendingPathComponent("Recordings", isDirectory: true)
-              .appendingPathComponent(filename)
-            audioURL = resolved
-          } else {
-            historyLogger.error("Cannot resolve audio path for transcript \(id)")
-            return .none
-          }
+        // iOS container UUIDs change between launches, so stored absolute paths
+        // may be stale. `resolvedAudioURL()` handles the fallback.
+        guard let audioURL = transcript.resolvedAudioURL() else {
+          historyLogger.error("Cannot resolve audio path for transcript \(id)")
+          return .none
         }
 
         do {

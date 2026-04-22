@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import HexCore
 import SwiftUI
 
 struct TranscriptionResultView: View {
@@ -157,11 +158,16 @@ struct TranscriptionResultView: View {
             }
 
             if let text = store.lastTranscriptionResult, !text.isEmpty {
-              ShareLink(item: activeText) {
+              TranscriptShareMenu(
+                text: activeText,
+                audioURL: currentTranscript?.resolvedAudioURL(),
+                previewTitle: currentTranscript?.sharePreviewTitle ?? activeText.prefix(60).description,
+                audioFilenameBase: currentTranscript?.audioExportFilenameBase
+                  ?? "ThoughtFlow \(Self.fallbackFilenameFormatter.string(from: Date()))"
+              ) {
                 actionLabel(label: "Share", icon: "square.and.arrow.up")
                   .foregroundStyle(.primary)
               }
-              .buttonStyle(.plain)
 
               actionButton(
                 label: showSavedToNotes ? "Saved" : "New Note",
@@ -248,6 +254,19 @@ struct TranscriptionResultView: View {
     }
     return editableText
   }
+
+  /// The persisted transcript matching `currentTranscriptID`, if history is on.
+  private var currentTranscript: Transcript? {
+    guard let id = store.currentTranscriptID else { return nil }
+    return store.transcriptionHistory.history.first(where: { $0.id == id })
+  }
+
+  private static let fallbackFilenameFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd HH-mm"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+  }()
 
   private func actionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
     Button(action: action) {
