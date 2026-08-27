@@ -4,35 +4,11 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-// MARK: - Audio path resolution
+// MARK: - Share presentation helpers
+
+// `resolvedAudioURL()` lives in HexCore alongside `RecordingStore`.
 
 extension Transcript {
-  /// The audio file, resolved to a currently-valid on-disk location.
-  ///
-  /// iOS app containers get a fresh UUID between launches, so a stored absolute
-  /// `audioPath` can be stale. If it is, reconstruct the path under the current
-  /// container's Application Support / com.kitlangton.Hex / Recordings directory
-  /// using the original filename.
-  func resolvedAudioURL() -> URL? {
-    let fm = FileManager.default
-    if fm.fileExists(atPath: audioPath.path) {
-      return audioPath
-    }
-    guard let support = try? fm.url(
-      for: .applicationSupportDirectory,
-      in: .userDomainMask,
-      appropriateFor: nil,
-      create: false
-    ) else {
-      return nil
-    }
-    let reconstructed = support
-      .appendingPathComponent("com.kitlangton.Hex", isDirectory: true)
-      .appendingPathComponent("Recordings", isDirectory: true)
-      .appendingPathComponent(audioPath.lastPathComponent)
-    return fm.fileExists(atPath: reconstructed.path) ? reconstructed : nil
-  }
-
   /// Short text label suitable for `SharePreview` titles.
   var sharePreviewTitle: String {
     let base = (refinedText ?? text).trimmingCharacters(in: .whitespacesAndNewlines)

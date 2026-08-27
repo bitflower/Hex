@@ -35,9 +35,16 @@ struct IOSHistoryView: View {
                       .font(.title3)
 
                     VStack(alignment: .leading, spacing: 4) {
-                      Text(transcript.refinedText ?? transcript.text)
-                        .font(.body)
-                        .lineLimit(3)
+                      if transcript.didFail {
+                        Label("Transcription failed", systemImage: "exclamationmark.triangle.fill")
+                          .font(.body)
+                          .foregroundStyle(.orange)
+                          .lineLimit(1)
+                      } else {
+                        Text(transcript.refinedText ?? transcript.text)
+                          .font(.body)
+                          .lineLimit(3)
+                      }
 
                       HStack(spacing: 6) {
                         Text(transcript.timestamp.relativeFormatted())
@@ -68,11 +75,13 @@ struct IOSHistoryView: View {
                   IOSTranscriptRow(
                     transcript: transcript,
                     isPlaying: store.playingTranscriptID == transcript.id,
+                    isRetrying: store.retryingTranscriptIDs.contains(transcript.id),
                     onTap: { store.send(.openTranscript(text: transcript.text, refinedText: transcript.refinedText)) },
                     onPlay: { store.send(.playTranscript(transcript.id)) },
                     onCopy: { store.send(.copyToClipboard(transcript.refinedText ?? transcript.text)) },
                     onSaveToNotes: { store.send(.saveToAppleNotes(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) },
-                    onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) }
+                    onAppendToNote: { store.send(.appendToAppleNote(transcript.refinedText ?? transcript.text, transcriptID: transcript.id)) },
+                    onRetry: { store.send(.retryTranscript(transcript.id)) }
                   )
                   .swipeActions(edge: .trailing) {
                     Button(role: .destructive) {
@@ -144,11 +153,13 @@ struct IOSHistoryView: View {
 struct IOSTranscriptRow: View {
   let transcript: Transcript
   let isPlaying: Bool
+  let isRetrying: Bool
   let onTap: () -> Void
   let onPlay: () -> Void
   let onCopy: () -> Void
   let onSaveToNotes: () -> Void
   let onAppendToNote: () -> Void
+  let onRetry: () -> Void
   @State private var showCopied = false
   @State private var showSavedToNotes = false
   @State private var showAppended = false
@@ -156,9 +167,13 @@ struct IOSTranscriptRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       VStack(alignment: .leading, spacing: 8) {
-        Text(transcript.refinedText ?? transcript.text)
-          .font(.body)
-          .lineLimit(4)
+        if transcript.didFail {
+          failureSummary
+        } else {
+          Text(transcript.refinedText ?? transcript.text)
+            .font(.body)
+            .lineLimit(4)
+        }
 
         HStack(spacing: 6) {
           Image(systemName: "clock")
@@ -182,45 +197,53 @@ struct IOSTranscriptRow: View {
         .foregroundStyle(.secondary)
       }
       .contentShape(Rectangle())
-      .onTapGesture { onTap() }
+      .onTapGesture {
+        // A failed entry has no text to open.
+        guard !transcript.didFail else { return }
+        onTap()
+      }
 
       HStack(spacing: 16) {
-        historyActionButton(
-          label: showCopied ? "Copied" : "Copy",
-          icon: showCopied ? "checkmark" : "doc.on.doc",
-          tint: showCopied ? .green : .primary
-        ) {
-          onCopy()
-          withAnimation { showCopied = true }
-          Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            withAnimation { showCopied = false }
+        if transcript.didFail {
+          retryAction
+        } else {
+          historyActionButton(
+            label: showCopied ? "Copied" : "Copy",
+            icon: showCopied ? "checkmark" : "doc.on.doc",
+            tint: showCopied ? .green : .primary
+          ) {
+            onCopy()
+            withAnimation { showCopied = true }
+            Task {
+              try? await Task.sleep(for: .seconds(1.5))
+              withAnimation { showCopied = false }
+            }
           }
-        }
 
-        historyActionButton(
-          label: showSavedToNotes ? "Saved" : "New Note",
-          icon: showSavedToNotes ? "checkmark" : "note.text",
-          tint: showSavedToNotes ? .green : .primary
-        ) {
-          onSaveToNotes()
-          withAnimation { showSavedToNotes = true }
-          Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            withAnimation { showSavedToNotes = false }
+          historyActionButton(
+            label: showSavedToNotes ? "Saved" : "New Note",
+            icon: showSavedToNotes ? "checkmark" : "note.text",
+            tint: showSavedToNotes ? .green : .primary
+          ) {
+            onSaveToNotes()
+            withAnimation { showSavedToNotes = true }
+            Task {
+              try? await Task.sleep(for: .seconds(1.5))
+              withAnimation { showSavedToNotes = false }
+            }
           }
-        }
 
-        historyActionButton(
-          label: showAppended ? "Appended" : "Append",
-          icon: showAppended ? "checkmark" : "note.text.badge.plus",
-          tint: showAppended ? .green : .primary
-        ) {
-          onAppendToNote()
-          withAnimation { showAppended = true }
-          Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            withAnimation { showAppended = false }
+          historyActionButton(
+            label: showAppended ? "Appended" : "Append",
+            icon: showAppended ? "checkmark" : "note.text.badge.plus",
+            tint: showAppended ? .green : .primary
+          ) {
+            onAppendToNote()
+            withAnimation { showAppended = true }
+            Task {
+              try? await Task.sleep(for: .seconds(1.5))
+              withAnimation { showAppended = false }
+            }
           }
         }
 
@@ -244,6 +267,47 @@ struct IOSTranscriptRow: View {
       }
     }
     .padding(.vertical, 4)
+  }
+
+  /// Shown instead of transcript text when transcription never produced any.
+  /// The audio is still on disk, so the row stays playable and shareable.
+  private var failureSummary: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Label("Transcription failed", systemImage: "exclamationmark.triangle.fill")
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.orange)
+
+      if let reason = transcript.failureReason,
+         !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(reason)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+
+      Text("The recording was kept — you can retry, play, or share it.")
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+    }
+  }
+
+  @ViewBuilder
+  private var retryAction: some View {
+    if isRetrying {
+      VStack(spacing: 4) {
+        ProgressView()
+          .frame(height: 20)
+        Text("Retrying")
+          .font(.caption2)
+          .lineLimit(1)
+      }
+      .frame(minWidth: 48)
+      .foregroundStyle(.secondary)
+    } else {
+      historyActionButton(label: "Retry", icon: "arrow.clockwise", tint: .blue) {
+        onRetry()
+      }
+    }
   }
 
   private func historyActionButton(label: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {

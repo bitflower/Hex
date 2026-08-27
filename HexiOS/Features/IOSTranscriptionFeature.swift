@@ -87,16 +87,58 @@ struct IOSTranscriptionFeature {
   @Dependency(\.refinement) var refinement
   @Dependency(\.sleepManagement) var sleepManagement
 
-  private static let datePrefixFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd"
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    return formatter
-  }()
-
   enum CancelID {
     case metering
     case refinement
+  }
+
+  /// Inserts a transcript at the head of history and trims to `maxEntries`,
+  /// deleting the audio of anything that falls off the end.
+  private static func insert(
+    _ transcript: Transcript,
+    into transcriptionHistory: Shared<TranscriptionHistory>,
+    maxEntries: Int?,
+    persistence: TranscriptPersistenceClient
+  ) {
+    transcriptionHistory.withLock { history in
+      history.history.insert(transcript, at: 0)
+
+      if let maxEntries, maxEntries > 0 {
+        while history.history.count > maxEntries {
+          if let removed = history.history.popLast() {
+            Task {
+              try? await persistence.deleteAudio(removed)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Keeps the audio of a recording whose transcription failed, so the take is
+  /// not lost. Without this the file stays in the temp directory, which iOS
+  /// purges without warning and never includes in device backups.
+  ///
+  /// Respects `saveTranscriptionHistory`: if the user has asked us not to keep
+  /// recordings, a failure discards the audio like a success would.
+  private static func preserveFailedRecording(
+    at audioURL: URL,
+    duration: TimeInterval,
+    reason: String,
+    saveHistory: Bool,
+    transcriptionHistory: Shared<TranscriptionHistory>,
+    maxEntries: Int?,
+    persistence: TranscriptPersistenceClient
+  ) async {
+    guard saveHistory else {
+      try? FileManager.default.removeItem(at: audioURL)
+      return
+    }
+    guard let transcript = try? await persistence.saveFailed(audioURL, duration, reason) else {
+      transcriptionLogger.error("Failed to preserve audio for a failed transcription")
+      return
+    }
+    insert(transcript, into: transcriptionHistory, maxEntries: maxEntries, persistence: persistence)
   }
 
   var body: some ReducerOf<Self> {
@@ -145,19 +187,17 @@ struct IOSTranscriptionFeature {
         state.isTranscribing = true
         soundEffects.play(.stopRecording)
 
-        let model = state.hexSettings.selectedModel
-        let language = state.hexSettings.outputLanguage
-        let wordRemappings = state.hexSettings.wordRemappings
-        let wordRemovals = state.hexSettings.wordRemovals
-        let wordRemovalsEnabled = state.hexSettings.wordRemovalsEnabled
-        let saveHistory = state.hexSettings.saveTranscriptionHistory
+        let settings = state.hexSettings
+        let model = settings.selectedModel
+        let language = settings.outputLanguage
+        let saveHistory = settings.saveTranscriptionHistory
+        let maxHistoryEntries = settings.maxHistoryEntries
         let startTime = state.recordingStartTime
         let transcriptionHistory = state.$transcriptionHistory
-        let maxHistoryEntries = state.hexSettings.maxHistoryEntries
 
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { [sleepManagement] send in
+          .run { [sleepManagement, transcriptPersistence] send in
             await sleepManagement.allowSleep()
             let haptic = await UIImpactFeedbackGenerator(style: .light)
             await haptic.impactOccurred()
@@ -170,37 +210,22 @@ struct IOSTranscriptionFeature {
               if let language, !language.isEmpty {
                 options.language = language
               }
-              var text = try await transcription.transcribe(audioURL, model, options) { _ in }
-
-              // Apply word removals
-              if wordRemovalsEnabled {
-                text = WordRemovalApplier.apply(text, removals: wordRemovals)
-              }
-
-              // Apply word remappings
-              text = WordRemappingApplier.apply(text, remappings: wordRemappings)
-
-              text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-              // Add date prefix (YYYY-MM-DD)
-              text = Self.datePrefixFormatter.string(from: Date()) + " " + text
+              let raw = try await transcription.transcribe(audioURL, model, options) { _ in }
+              let text = TranscriptTextPostProcessor.normalizeWithDatePrefix(
+                raw,
+                settings: settings,
+                date: Date()
+              )
 
               // Save to history
               if saveHistory {
                 if let transcript = try? await transcriptPersistence.save(text, audioURL, duration, nil, nil) {
-                  transcriptionHistory.withLock { history in
-                    history.history.insert(transcript, at: 0)
-
-                    if let maxEntries = maxHistoryEntries, maxEntries > 0 {
-                      while history.history.count > maxEntries {
-                        if let removed = history.history.popLast() {
-                          Task {
-                            try? await transcriptPersistence.deleteAudio(removed)
-                          }
-                        }
-                      }
-                    }
-                  }
+                  Self.insert(
+                    transcript,
+                    into: transcriptionHistory,
+                    maxEntries: maxHistoryEntries,
+                    persistence: transcriptPersistence
+                  )
                 }
               } else {
                 try? FileManager.default.removeItem(at: audioURL)
@@ -209,6 +234,15 @@ struct IOSTranscriptionFeature {
               await send(.transcriptionResult(text, audioURL))
             } catch {
               transcriptionLogger.error("Transcription failed: \(error.localizedDescription)")
+              await Self.preserveFailedRecording(
+                at: audioURL,
+                duration: duration,
+                reason: error.localizedDescription,
+                saveHistory: saveHistory,
+                transcriptionHistory: transcriptionHistory,
+                maxEntries: maxHistoryEntries,
+                persistence: transcriptPersistence
+              )
               await send(.transcriptionFailed(error.localizedDescription))
             }
           }
@@ -372,40 +406,50 @@ struct IOSTranscriptionFeature {
         state.isAppendTranscribing = true
         soundEffects.play(.stopRecording)
 
-        let model = state.hexSettings.selectedModel
-        let language = state.hexSettings.outputLanguage
-        let wordRemappings = state.hexSettings.wordRemappings
-        let wordRemovals = state.hexSettings.wordRemovals
-        let wordRemovalsEnabled = state.hexSettings.wordRemovalsEnabled
+        let settings = state.hexSettings
+        let model = settings.selectedModel
+        let language = settings.outputLanguage
+        let saveHistory = settings.saveTranscriptionHistory
+        let maxHistoryEntries = settings.maxHistoryEntries
+        let startTime = state.recordingStartTime
+        let transcriptionHistory = state.$transcriptionHistory
 
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { [sleepManagement] send in
+          .run { [sleepManagement, transcriptPersistence] send in
             await sleepManagement.allowSleep()
             let haptic = await UIImpactFeedbackGenerator(style: .light)
             await haptic.impactOccurred()
 
             let audioURL = await recording.stopRecording()
+            let duration = startTime.map { Date().timeIntervalSince($0) } ?? 0
 
             do {
               var options = DecodingOptions()
               if let language, !language.isEmpty {
                 options.language = language
               }
-              var text = try await transcription.transcribe(audioURL, model, options) { _ in }
-
-              if wordRemovalsEnabled {
-                text = WordRemovalApplier.apply(text, removals: wordRemovals)
-              }
-              text = WordRemappingApplier.apply(text, remappings: wordRemappings)
-              text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+              let raw = try await transcription.transcribe(audioURL, model, options) { _ in }
+              // No date prefix: this text is inserted into a transcript that
+              // already carries one.
+              let text = TranscriptTextPostProcessor.normalize(raw, settings: settings)
 
               try? FileManager.default.removeItem(at: audioURL)
 
               await send(.appendTranscriptionResult(text))
             } catch {
               transcriptionLogger.error("Append transcription failed: \(error.localizedDescription)")
-              try? FileManager.default.removeItem(at: audioURL)
+              // This used to delete the audio outright, so a failed append lost
+              // the take with no way to recover it. Keep it as a retryable entry.
+              await Self.preserveFailedRecording(
+                at: audioURL,
+                duration: duration,
+                reason: error.localizedDescription,
+                saveHistory: saveHistory,
+                transcriptionHistory: transcriptionHistory,
+                maxEntries: maxHistoryEntries,
+                persistence: transcriptPersistence
+              )
               await send(.appendTranscriptionFailed)
             }
           }
