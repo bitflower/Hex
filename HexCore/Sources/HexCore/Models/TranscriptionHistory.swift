@@ -10,6 +10,13 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
     public var sourceAppBundleID: String?
     public var sourceAppName: String?
     public var savedToNotes: Bool?
+    /// Non-nil when transcription failed for this recording. The audio is kept
+    /// anyway so the user can play, share, or retry it instead of losing the
+    /// take. Optional so history written before this existed still decodes.
+    public var failureReason: String?
+
+    /// Whether this entry is a recording whose transcription never produced text.
+    public var didFail: Bool { failureReason != nil }
 
     public init(
         id: UUID = UUID(),
@@ -20,7 +27,8 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
         duration: TimeInterval,
         sourceAppBundleID: String? = nil,
         sourceAppName: String? = nil,
-        savedToNotes: Bool = false
+        savedToNotes: Bool = false,
+        failureReason: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -31,6 +39,7 @@ public struct Transcript: Codable, Equatable, Identifiable, Sendable {
         self.sourceAppBundleID = sourceAppBundleID
         self.sourceAppName = sourceAppName
         self.savedToNotes = savedToNotes
+        self.failureReason = failureReason
     }
 }
 

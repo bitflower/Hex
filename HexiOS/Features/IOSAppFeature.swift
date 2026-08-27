@@ -18,6 +18,10 @@ struct IOSAppFeature {
     var activeTab: ActiveTab = .record
     var tabBeforeTranscriptOpen: ActiveTab?
     var microphonePermission: PermissionStatus = .notDetermined
+    /// The stranded-recording sweep must run at most once per process — a
+    /// recording that is merely in flight also sits in the temp directory, and
+    /// SwiftUI may re-fire the root `.task`.
+    var didSweepStrandedRecordings = false
   }
 
   enum Action {
@@ -49,9 +53,28 @@ struct IOSAppFeature {
     Reduce { state, action in
       switch action {
       case .task:
+        let shouldSweep = !state.didSweepStrandedRecordings
+        state.didSweepStrandedRecordings = true
+        let saveHistory = state.transcription.hexSettings.saveTranscriptionHistory
+        let transcriptionHistory = state.transcription.$transcriptionHistory
+
         return .merge(
           .run { send in
             await send(.checkPermissions)
+          },
+          .run { _ in
+            // Adopt recordings a crash or force-quit stranded in the temp
+            // directory, before iOS purges them.
+            guard shouldSweep else { return }
+            guard saveHistory else {
+              OrphanedRecordingRecovery.discardStrandedRecordings()
+              return
+            }
+            let recovered = OrphanedRecordingRecovery.recoverStrandedRecordings()
+            guard !recovered.isEmpty else { return }
+            transcriptionHistory.withLock { history in
+              history.history.insert(contentsOf: recovered, at: 0)
+            }
           },
           .run { send in
             // Listen for recording intent from lock screen / Siri / Action Button
