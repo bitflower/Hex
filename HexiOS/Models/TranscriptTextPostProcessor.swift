@@ -16,10 +16,33 @@ enum TranscriptTextPostProcessor {
 
   /// `normalize` plus the `YYYY-MM-DD` prefix used for primary transcriptions.
   ///
+  /// When a `headline` is supplied, it's placed right after the date, and the
+  /// transcript follows on its own paragraph:
+  ///
+  /// ```
+  /// 2026-08-31 Team sync on deployment plan
+  ///
+  /// We agreed to move the endpoint to the new cluster...
+  /// ```
+  ///
+  /// Without a headline (e.g. generation was unavailable or failed), the
+  /// transcript simply follows the date on the same line, unchanged from
+  /// prior behavior.
+  ///
   /// Append transcriptions deliberately skip the prefix — their text is inserted
   /// into an existing transcript that already carries one.
-  static func normalizeWithDatePrefix(_ raw: String, settings: HexSettings, date: Date) -> String {
-    datePrefixFormatter.string(from: date) + " " + normalize(raw, settings: settings)
+  static func normalizeWithDatePrefix(
+    _ raw: String,
+    settings: HexSettings,
+    date: Date,
+    headline: String? = nil
+  ) -> String {
+    let prefix = datePrefixFormatter.string(from: date)
+    let body = normalize(raw, settings: settings)
+    guard let headline, !headline.isEmpty else {
+      return prefix + " " + body
+    }
+    return prefix + " " + headline + "\n\n" + body
   }
 
   private static let datePrefixFormatter: DateFormatter = {

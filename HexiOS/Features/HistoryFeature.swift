@@ -121,6 +121,20 @@ struct HistoryFeature {
   @Dependency(\.appleNotes) var appleNotes
   @Dependency(\.transcription) var transcription
   @Dependency(\.transcriptPersistence) var transcriptPersistence
+  @Dependency(\.headline) var headline
+
+  /// Best-effort headline generation: unavailable models, short transcripts,
+  /// or generation errors all fall back to `nil`, so callers can compose the
+  /// plain date-prefixed text as before.
+  private static func deriveHeadline(from text: String, headline: HeadlineClient) async -> String? {
+    guard headline.isAvailable() else { return nil }
+    do {
+      return try await headline.generate(text)
+    } catch {
+      historyLogger.error("Headline generation failed: \(error.localizedDescription)")
+      return nil
+    }
+  }
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -259,17 +273,22 @@ struct HistoryFeature {
         // reproduces what the first attempt would have written.
         let recordedAt = transcript.timestamp
 
-        return .run { [transcription] send in
+        return .run { [transcription, headline] send in
           do {
             var options = DecodingOptions()
             if let language, !language.isEmpty {
               options.language = language
             }
             let raw = try await transcription.transcribe(audioURL, model, options) { _ in }
+            let generatedHeadline = await Self.deriveHeadline(
+              from: TranscriptTextPostProcessor.normalize(raw, settings: settings),
+              headline: headline
+            )
             let text = TranscriptTextPostProcessor.normalizeWithDatePrefix(
               raw,
               settings: settings,
-              date: recordedAt
+              date: recordedAt,
+              headline: generatedHeadline
             )
             await send(.retrySucceeded(id: id, text: text))
           } catch {

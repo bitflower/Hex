@@ -85,11 +85,25 @@ struct IOSTranscriptionFeature {
   @Dependency(\.pasteboard) var pasteboard
   @Dependency(\.appleNotes) var appleNotes
   @Dependency(\.refinement) var refinement
+  @Dependency(\.headline) var headline
   @Dependency(\.sleepManagement) var sleepManagement
 
   enum CancelID {
     case metering
     case refinement
+  }
+
+  /// Best-effort headline generation: unavailable models, short transcripts,
+  /// or generation errors all fall back to `nil`, so callers can compose the
+  /// plain date-prefixed text as before.
+  private static func deriveHeadline(from text: String, headline: HeadlineClient) async -> String? {
+    guard headline.isAvailable() else { return nil }
+    do {
+      return try await headline.generate(text)
+    } catch {
+      transcriptionLogger.error("Headline generation failed: \(error.localizedDescription)")
+      return nil
+    }
   }
 
   /// Inserts a transcript at the head of history and trims to `maxEntries`,
@@ -197,7 +211,7 @@ struct IOSTranscriptionFeature {
 
         return .merge(
           .cancel(id: CancelID.metering),
-          .run { [sleepManagement, transcriptPersistence] send in
+          .run { [sleepManagement, transcriptPersistence, headline] send in
             await sleepManagement.allowSleep()
             let haptic = await UIImpactFeedbackGenerator(style: .light)
             await haptic.impactOccurred()
@@ -211,10 +225,15 @@ struct IOSTranscriptionFeature {
                 options.language = language
               }
               let raw = try await transcription.transcribe(audioURL, model, options) { _ in }
+              let generatedHeadline = await Self.deriveHeadline(
+                from: TranscriptTextPostProcessor.normalize(raw, settings: settings),
+                headline: headline
+              )
               let text = TranscriptTextPostProcessor.normalizeWithDatePrefix(
                 raw,
                 settings: settings,
-                date: Date()
+                date: Date(),
+                headline: generatedHeadline
               )
 
               // Save to history
